@@ -1,4 +1,3 @@
-// Implemented the Genkit flow for answering financial questions using available data.
 'use server';
 
 /**
@@ -10,7 +9,8 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
+import { fetchCompanyDataTool } from '@/ai/tools/fetch-company-data-tool';
 
 const AnswerFinancialQuestionsInputSchema = z.object({
   question: z.string().describe('The financial question to answer.'),
@@ -33,7 +33,13 @@ const prompt = ai.definePrompt({
   name: 'answerFinancialQuestionsPrompt',
   input: {schema: AnswerFinancialQuestionsInputSchema},
   output: {schema: AnswerFinancialQuestionsOutputSchema},
-  prompt: `You are a financial analyst. Answer the following question about {{companyName}} based on available data:\n\nQuestion: {{{question}}}`,
+  tools: [fetchCompanyDataTool],
+  system: `You are a helpful financial analyst.
+When asked a question about a company, use the 'fetchCompanyData' tool to get information about the specified company.
+Base your answer on the information provided by the tool and the user's question.
+If the tool returns no specific data, state that clearly in your answer.
+The user is asking about {{companyName}}.`,
+  prompt: `{{{question}}}`,
 });
 
 const answerFinancialQuestionsFlow = ai.defineFlow(

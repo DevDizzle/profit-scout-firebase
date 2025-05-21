@@ -30,7 +30,7 @@ export default function LoginPage() {
       document.cookie = `firebaseIdToken=${idToken}; path=/; max-age=${60 * 60 * 24 * 7}`; // 7 days
 
       toast({ title: 'Login Successful', description: 'Welcome back!' });
-      router.push('/dashboard');
+      router.push('/chat'); // Changed from /dashboard
     } catch (error: any) {
       console.error('Login error:', error);
       toast({
@@ -55,7 +55,7 @@ export default function LoginPage() {
             </svg>
         </div>
           <CardTitle className="text-2xl">Welcome to ProfitScout</CardTitle>
-          <CardDescription>Sign in to access your financial dashboard.</CardDescription>
+          <CardDescription>Sign in to access your financial insights.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-6">

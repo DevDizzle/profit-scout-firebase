@@ -12,7 +12,7 @@ export default function HomePage() {
   useEffect(() => {
     if (!loading) {
       if (isAuthenticated) {
-        router.replace('/dashboard');
+        router.replace('/chat'); // Changed from /dashboard
       } else {
         router.replace('/login');
       }

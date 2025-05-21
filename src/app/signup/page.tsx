@@ -39,7 +39,7 @@ export default function SignupPage() {
       document.cookie = `firebaseIdToken=${idToken}; path=/; max-age=${60 * 60 * 24 * 7}`;
 
       toast({ title: 'Account Created', description: 'Welcome to ProfitScout!' });
-      router.push('/dashboard');
+      router.push('/chat'); // Changed from /dashboard
     } catch (error: any) {
       console.error('Signup error:', error);
       toast({
@@ -64,7 +64,7 @@ export default function SignupPage() {
             </svg>
           </div>
           <CardTitle className="text-2xl">Create your ProfitScout Account</CardTitle>
-          <CardDescription>Get started with AI-powered financial analysis.</CardDescription>
+          <CardDescription>Get started with AI-powered financial insights.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignup} className="space-y-4">
