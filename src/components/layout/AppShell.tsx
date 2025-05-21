@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart2, MessageCircle, LogOut, Settings, UserCircle } from 'lucide-react';
+import { MessageCircle, LogOut } from 'lucide-react'; // Removed BarChart2, Settings, UserCircle as they are not used for nav
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -18,14 +18,15 @@ interface AppShellProps {
   children: ReactNode;
 }
 
+// Updated navItems to only include Chat
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: BarChart2 },
   { href: '/chat', label: 'Chat', icon: MessageCircle },
 ];
 
 function Logo() {
   return (
-    <Link href="/dashboard" className="flex items-center gap-2 text-xl font-semibold text-primary">
+    // Updated logo link to point to /chat
+    <Link href="/chat" className="flex items-center gap-2 text-xl font-semibold text-primary">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary">
         <path d="M12 2L2 7V17L12 22L22 17V7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
         <path d="M2 7L12 12M12 12L22 7M12 12V22M12 2V12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>

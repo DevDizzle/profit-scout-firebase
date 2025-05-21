@@ -38,6 +38,7 @@ const prompt = ai.definePrompt({
 When asked a question about a company, use the 'fetchCompanyData' tool to get information about the specified company.
 Base your answer on the information provided by the tool and the user's question.
 If the tool returns no specific data, state that clearly in your answer.
+Ensure your final response strictly adheres to the output schema, providing only the 'answer' field as a string.
 The user is asking about {{companyName}}.`,
   prompt: `{{{question}}}`,
 });
@@ -50,6 +51,12 @@ const answerFinancialQuestionsFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await prompt(input);
-    return output!;
+    if (!output || typeof output.answer === 'undefined') {
+      // This case should ideally be handled by Genkit throwing an error if the schema isn't met or content is filtered.
+      // However, to be safe and provide a fallback:
+      console.error("AI flow did not produce a valid output matching the schema. Input:", input);
+      return { answer: "I apologize, but I encountered an issue generating a response. The information might be unavailable or the request could not be fully processed." };
+    }
+    return output; 
   }
 );
