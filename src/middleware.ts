@@ -1,3 +1,4 @@
+
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -13,8 +14,8 @@ export function middleware(request: NextRequest) {
 
   if (isPublicPath) {
     if (isAuthenticated) {
-      // If user is authenticated and tries to access login/signup, redirect to dashboard
-      return NextResponse.redirect(new URL('/dashboard', request.url));
+      // If user is authenticated and tries to access login/signup, redirect to chat
+      return NextResponse.redirect(new URL('/chat', request.url));
     }
     // Allow access to public paths if not authenticated
     return NextResponse.next();
