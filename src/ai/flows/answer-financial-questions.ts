@@ -2,26 +2,25 @@
 'use server';
 
 /**
- * @fileOverview A flow to answer financial questions about a company, potentially using company data or documents from GCS.
+ * @fileOverview A flow to answer general questions using a conversational AI.
  *
- * - answerFinancialQuestions - A function that answers financial questions based on available data.
+ * - answerFinancialQuestions - A function that answers questions based on the input.
  * - AnswerFinancialQuestionsInput - The input type for the answerFinancialQuestions function.
  * - AnswerFinancialQuestionsOutput - The return type for the answerFinancialQuestions function.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
-import { fetchCompanyDataTool } from '@/ai/tools/fetch-company-data-tool';
-import { fetchDocumentFromGCSTool } from '@/ai/tools/fetch-document-gcs-tool'; // Import the GCS tool
 
+// Input schema can remain, but companyName will be ignored by the simplified prompt
 const AnswerFinancialQuestionsInputSchema = z.object({
-  question: z.string().describe('The financial question to answer.'),
-  companyName: z.string().optional().describe('The name of the company, if relevant. This helps focus company-specific data retrieval.'),
+  question: z.string().describe('The user question to answer.'),
+  companyName: z.string().optional().describe('The name of the company, if relevant (currently ignored by the simplified prompt).'),
 });
 export type AnswerFinancialQuestionsInput = z.infer<typeof AnswerFinancialQuestionsInputSchema>;
 
 const AnswerFinancialQuestionsOutputSchema = z.object({
-  answer: z.string().describe('The answer to the financial question.'),
+  answer: z.string().describe('The answer to the question.'),
 });
 export type AnswerFinancialQuestionsOutput = z.infer<typeof AnswerFinancialQuestionsOutputSchema>;
 
@@ -35,19 +34,12 @@ const prompt = ai.definePrompt({
   name: 'answerFinancialQuestionsPrompt',
   input: {schema: AnswerFinancialQuestionsInputSchema},
   output: {schema: AnswerFinancialQuestionsOutputSchema},
-  tools: [fetchCompanyDataTool, fetchDocumentFromGCSTool], // Add GCS tool here
-  system: `You are a friendly and helpful financial analyst chat assistant. Your primary goal is to answer financial questions accurately.
-- If the user provides a simple greeting (e.g., "Hi", "Hello"), respond politely and briefly, then offer to assist with financial questions. For example: "Hello! How can I help you with your financial questions today?"
-- You have access to two tools:
-  1. 'fetchCompanyData': Use this tool if the user asks a general question about a specific company (e.g., "Tell me about Innovatech", "What's Globex's revenue?"). Use the 'companyName' from the input if provided.
-  2. 'fetchDocumentFromGCS': Use this tool if the user asks a question that requires information from a specific document stored in Google Cloud Storage (GCS) AND they provide a GCS path (e.g., "gs://bucket-name/file-name.txt"). The tool requires 'bucketName' and 'fileName'.
-- If the user's question seems to need a document from GCS but they DO NOT provide the GCS path (bucket and file name), you MUST respond by stating that you need the GCS bucket and file name to access the document. For example: "I can help with that, but I'll need the GCS bucket and file name for the document." Do not attempt to guess the path or use the tool without it.
-- Base your answer on the information provided by the tools (if used) and the user's question.
-- If a tool returns no specific data, or if no specific company is mentioned and the context is general, clearly state that specific data is not available and offer to answer questions about companies or documents if the user provides the necessary details.
-- If the question is very generic and not finance-related, or if you cannot answer even with tools, politely state your purpose as a financial assistant or indicate you cannot fulfill the request.
+  // Tools have been removed
+  system: `You are a friendly and helpful conversational AI assistant.
+- Respond politely and conversationally to the user's questions.
+- If the user provides a simple greeting (e.g., "Hi", "Hello"), respond in kind.
 - Always ensure your final response strictly adheres to the output schema, providing only the 'answer' field as a string. Do not add any preamble or explanation outside of the 'answer' field.`,
-  prompt: `User question: {{{question}}}
-{{#if companyName}}Company context: {{{companyName}}}{{/if}}`,
+  prompt: `User question: {{{question}}}`,
 });
 
 const answerFinancialQuestionsFlow = ai.defineFlow(
@@ -57,25 +49,33 @@ const answerFinancialQuestionsFlow = ai.defineFlow(
     outputSchema: AnswerFinancialQuestionsOutputSchema,
   },
   async (input: AnswerFinancialQuestionsInput) => {
-    // Ensure companyName is passed if available, otherwise it's undefined
+    // companyName from input is available but will be ignored by the simplified prompt
     const promptInput = {
       question: input.question,
-      companyName: input.companyName || undefined,
+      companyName: input.companyName, // Pass it along, though the prompt won't use it for tools
     };
 
     try {
+      console.log('[answerFinancialQuestionsFlow] Calling prompt with input:', promptInput);
       const {output} = await prompt(promptInput);
-      if (!output || typeof output.answer === 'undefined' || output.answer.trim() === "") {
-        console.warn("AI flow did not produce a meaningful answer or the answer was empty. Input:", promptInput, "Output from AI:", output);
-        return { answer: "I received your message, but I'm having trouble formulating a specific financial response right now. Could you try rephrasing or asking a different question?" };
+      
+      if (!output || typeof output.answer === 'undefined') {
+        console.warn("[answerFinancialQuestionsFlow] AI flow did not produce a valid output structure. Input:", promptInput, "Output from AI:", output);
+        return { answer: "I'm having a little trouble formulating a response right now. Could you try rephrasing?" };
       }
+      if (output.answer.trim() === "") {
+         console.warn("[answerFinancialQuestionsFlow] AI flow produced an empty answer. Input:", promptInput, "Output from AI:", output);
+         // You might want to provide a more specific message or try a different approach
+         return { answer: "I received your message, but I don't have a specific response for that right now." };
+      }
+      console.log('[answerFinancialQuestionsFlow] Received output from AI:', output);
       return output;
     } catch (error) {
-      console.error("Error in answerFinancialQuestionsFlow:", error, "Input:", promptInput);
-      // This error will be caught by the frontend and display the generic message.
-      // To provide a flow-specific fallback to the user (instead of frontend generic error):
-      // return { answer: "I'm having a little trouble processing that. Please try rephrasing or ask another question."};
-      throw error; // Re-throw to be caught by the frontend, which shows the "Sorry, I couldn't process..."
+      console.error("[answerFinancialQuestionsFlow] Error during AI prompt call:", error, "Input:", promptInput);
+      // It's often better to let the calling function (e.g., chat UI) handle the display of a generic error
+      // by re-throwing, but for debugging, you could return a specific error message here.
+      // For now, re-throw so the chat UI's catch block handles it.
+      throw error; 
     }
   }
 );
