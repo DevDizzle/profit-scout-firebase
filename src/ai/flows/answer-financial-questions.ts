@@ -26,18 +26,17 @@ export type AnswerFinancialQuestionsOutput = z.infer<typeof AnswerFinancialQuest
 export async function answerFinancialQuestions(
   input: AnswerFinancialQuestionsInput
 ): Promise<AnswerFinancialQuestionsOutput> {
+  console.log('[answerFinancialQuestions exported function] ENTERED. Input:', JSON.stringify(input));
   try {
-    // This is the call to the Genkit defined flow
-    console.log('[answerFinancialQuestions exported function] Calling answerFinancialQuestionsFlow with input:', input);
+    console.log('[answerFinancialQuestions exported function] Attempting to call answerFinancialQuestionsFlow with input:', input);
     const result = await answerFinancialQuestionsFlow(input);
-    console.log('[answerFinancialQuestions exported function] Flow returned:', result);
+    console.log('[answerFinancialQuestions exported function] Flow returned successfully:', JSON.stringify(result));
     return result;
   } catch (error) {
-    // This is a new catch block at the Server Action wrapper level
     const typedError = error as Error;
     console.error(
-      "[answerFinancialQuestions exported function] CRITICAL ERROR CALLING FLOW. Input:",
-      input,
+      "[answerFinancialQuestions exported function] CRITICAL ERROR DURING FLOW INVOCATION OR PROCESSING. Input:",
+      JSON.stringify(input),
       "Error_Name:", typedError.name,
       "Error_Message:", typedError.message,
       "Error_Stack:", typedError.stack,
@@ -82,6 +81,7 @@ const answerFinancialQuestionsFlow = ai.defineFlow(
       // companyName is not used in the current simplified prompt, but good to pass if available
       // companyName: input.companyName,
     };
+    console.log('[answerFinancialQuestionsFlow] ENTERED. Processing promptInput:', JSON.stringify(promptInput));
 
     try {
       console.log('[answerFinancialQuestionsFlow] Calling prompt with input:', promptInput);
@@ -93,21 +93,18 @@ const answerFinancialQuestionsFlow = ai.defineFlow(
       }
       if (output.answer.trim() === "") {
          console.warn("[answerFinancialQuestionsFlow] AI flow produced an empty answer. Input:", promptInput, "Output from AI:", output);
-         // For a simple "Hi", it might be that the model is trying to be too conversational and not fitting the schema.
-         // The system prompt was updated to guide it better for greetings.
          return { answer: "I received your message, but I don't have a specific response for that right now. How can I assist you with financial questions?" };
       }
-      console.log('[answerFinancialQuestionsFlow] Received output from AI:', output);
+      console.log('[answerFinancialQuestionsFlow] Received output from AI successfully:', JSON.stringify(output));
       return output;
     } catch (error) {
       const typedError = error as Error;
-      // Log detailed error information on the server
       console.error(
         "[answerFinancialQuestionsFlow] CRITICAL ERROR DURING AI PROMPT CALL. Input:",
-        promptInput,
+        JSON.stringify(promptInput),
         "Error_Name:", typedError.name,
         "Error_Message:", typedError.message,
-        "Error_Stack:", typedError.stack, // It's good to log the stack for server-side debugging
+        "Error_Stack:", typedError.stack,
         "Full_Error_Object_Details:", JSON.stringify(error, Object.getOwnPropertyNames(error))
       );
       // Return a structured error response to the client instead of re-throwing
