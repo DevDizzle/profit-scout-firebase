@@ -1,3 +1,4 @@
+
 { pkgs, ... }: {
 
   # NOTE: This is an excerpt of a complete Nix configuration example.
@@ -10,21 +11,17 @@
     previews = {
       # The following object sets web previews
       web = {
-        # Temporarily changed to only run Next.js for debugging
-        command = [
-          "npm"
-          "run"
-          "next:studio" # Runs: next dev --turbopack --port $PORT --hostname 0.0.0.0
-        ];
+        # Command to run both Next.js dev server and Genkit watch
+        command = ["npm", "run", "dev:studio"];
         manager = "web";
         # Optionally, specify a directory that contains your web app
         # cwd = "app/client";
       };
       # The following object sets Android previews
       # Note that this is supported only on Flutter workspaces
-      # android = {
-      #   manager = "flutter";
-      # };
+      android = {
+        manager = "flutter";
+      };
     };
   };
 }

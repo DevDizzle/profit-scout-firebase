@@ -1,9 +1,10 @@
+
 'use client';
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessageCircle, LogOut } from 'lucide-react'; // Removed BarChart2, Settings, UserCircle as they are not used for nav
+import { MessageCircle, LogOut } from 'lucide-react';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -13,19 +14,18 @@ import { useAuth } from '@/hooks/useAuth';
 import { auth } from '@/config/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react'; // Import useState and useEffect
 
 interface AppShellProps {
   children: ReactNode;
 }
 
-// Updated navItems to only include Chat
 const navItems = [
   { href: '/chat', label: 'Chat', icon: MessageCircle },
 ];
 
 function Logo() {
   return (
-    // Updated logo link to point to /chat
     <Link href="/chat" className="flex items-center gap-2 text-xl font-semibold text-primary">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary">
         <path d="M12 2L2 7V17L12 22L22 17V7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -42,16 +42,19 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const { user } = useAuth();
   const router = useRouter();
+  const [clientReady, setClientReady] = useState(false); // State to manage client-side readiness
+
+  useEffect(() => {
+    setClientReady(true); // Set clientReady to true once component has mounted
+  }, []);
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      // Remove the auth cookie by setting its expiration to the past
       document.cookie = 'firebaseIdToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
       router.push('/login');
     } catch (error) {
       console.error('Error signing out: ', error);
-      // Potentially show a toast notification for error
     }
   };
   
@@ -98,7 +101,7 @@ export function AppShell({ children }: AppShellProps) {
           <div className="flex-1"> {/* Placeholder for breadcrumbs or search if needed later */}</div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
-            {user && (
+            {clientReady && user && ( // Only render user dropdown if clientReady and user exists
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-10 w-10 rounded-full">
