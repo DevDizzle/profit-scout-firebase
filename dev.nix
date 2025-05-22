@@ -10,7 +10,12 @@
     previews = {
       # The following object sets web previews
       web = {
-        command = ["npm", "run", "dev:studio"];
+        # Temporarily changed to only run Next.js for debugging
+        command = [
+          "npm"
+          "run"
+          "next:studio" # Runs: next dev --turbopack --port $PORT --hostname 0.0.0.0
+        ];
         manager = "web";
         # Optionally, specify a directory that contains your web app
         # cwd = "app/client";
