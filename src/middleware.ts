@@ -2,28 +2,38 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-const AUTH_TOKEN_COOKIE_NAME = 'firebaseIdToken'; // Adjust if you use a different cookie name for auth status
+const AUTH_TOKEN_COOKIE_NAME = 'firebaseIdToken';
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isAuthenticated = request.cookies.has(AUTH_TOKEN_COOKIE_NAME) || (!!request.headers.get('Authorization'));
-
+  const authTokenCookie = request.cookies.get(AUTH_TOKEN_COOKIE_NAME);
+  const isAuthenticated = !!authTokenCookie; // Check presence of the cookie
 
   const publicPaths = ['/login', '/signup'];
   const isPublicPath = publicPaths.some(path => pathname.startsWith(path));
 
+  // If the user is at the root path
+  if (pathname === '/') {
+    if (isAuthenticated) {
+      return NextResponse.redirect(new URL('/chat', request.url));
+    } else {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+  }
+
+  // If the user is trying to access a public path (login/signup)
   if (isPublicPath) {
     if (isAuthenticated) {
-      // If user is authenticated and tries to access login/signup, redirect to chat
+      // If authenticated, redirect away from login/signup to chat
       return NextResponse.redirect(new URL('/chat', request.url));
     }
-    // Allow access to public paths if not authenticated
+    // If not authenticated, allow access to public paths
     return NextResponse.next();
   }
 
-  // For all other paths (protected routes)
+  // For all other paths (assumed to be protected)
   if (!isAuthenticated) {
-    // If user is not authenticated, redirect to login
+    // If not authenticated, redirect to login
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
