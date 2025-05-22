@@ -11,7 +11,10 @@ if (!apiKey) {
     'Ensure this environment variable is set in your deployment environment (e.g., Cloud Run).'
   );
 } else {
-  console.log('[genkit.ts] GOOGLE_API_KEY found in process.env and will be used by Genkit googleAI plugin.');
+  const maskedApiKey = `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}`;
+  console.log(
+    `[genkit.ts] GOOGLE_API_KEY found in process.env. Starts with: ${apiKey.substring(0, 4)}, Ends with: ${apiKey.substring(apiKey.length - 4)}, Length: ${apiKey.length}. It will be used by Genkit googleAI plugin.`
+  );
 }
 
 export const ai = genkit({
