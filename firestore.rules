@@ -4,43 +4,30 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Default deny all access to any path not explicitly matched below.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
     // Sessions collection
+    // Users can read, write (update, delete), and create their own session documents.
     match /sessions/{sessionId} {
-      // Authenticated user can create their own session document
+      allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.user_id;
       allow create: if request.auth != null && request.resource.data.user_id == request.auth.uid;
 
-      // Authenticated user can read, update (e.g., last_active, company_ticker), and delete their own session document
-      allow read, update, delete: if request.auth != null && resource.data.user_id == request.auth.uid;
-
-      // Subcollections within a session
-      match /queries/{queryId} {
-        // User can read and write to subcollections of their own session
-        allow read, write: if request.auth != null && get(/databases/$(database)/documents/sessions/$(sessionId)).data.user_id == request.auth.uid;
-      }
-      match /specialist_outputs/{outputId} {
-        allow read, write: if request.auth != null && get(/databases/$(database)/documents/sessions/$(sessionId)).data.user_id == request.auth.uid;
-      }
-      match /synthesizer_responses/{responseId} {
-        allow read, write: if request.auth != null && get(/databases/$(database)/documents/sessions/$(sessionId)).data.user_id == request.auth.uid;
-      }
-      match /summaries/{summaryId} {
-        allow read, write: if request.auth != null && get(/databases/$(database)/documents/sessions/$(sessionId)).data.user_id == request.auth.uid;
-      }
-      match /metadata/{metadataId} {
-        allow read, write: if request.auth != null && get(/databases/$(database)/documents/sessions/$(sessionId)).data.user_id == request.auth.uid;
+      // Subcollections within a session (queries, specialist_outputs, synthesizer_responses, summaries, metadata)
+      // Users can read, write, and create documents in subcollections if they own the parent session.
+      match /{subcollection}/{docId} {
+        allow read, write, create: if request.auth != null && get(/databases/$(database)/documents/sessions/$(sessionId)).data.user_id == request.auth.uid;
       }
     }
 
     // Data Files collection
+    // Authenticated users can read data files.
+    // Writes to data_files should typically be handled by a trusted backend/admin process.
     match /data_files/{fileId} {
-      // Authenticated users can read data files metadata
       allow read: if request.auth != null;
-      
-      // By default, disallow client-side writes to data_files.
-      // These should be managed by a backend/admin process.
-      allow write: if false; 
-      // To allow backend (Admin SDK) writes, no explicit rule is needed here as Admin SDK bypasses security rules.
-      // If you need specific authenticated users (e.g., admins) to write from client, you'd add conditions.
+      allow write: if false; // Disallow client-side writes for now.
     }
   }
 }
