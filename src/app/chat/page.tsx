@@ -12,6 +12,12 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { answerFinancialQuestions, AnswerFinancialQuestionsInput } from '@/ai/flows/answer-financial-questions';
 import { useToast } from '@/hooks/use-toast';
+import {
+  createSession,
+  addQueryToSession,
+  addSynthesizerResponseToSession,
+  updateSessionLastActive,
+} from '@/services/firestore-service';
 
 interface Message {
   id: string;
@@ -27,6 +33,7 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [currentCompanyContext, setCurrentCompanyContext] = useState<string | undefined>(undefined);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -44,8 +51,6 @@ export default function ChatPage() {
   };
 
   const extractCompanyContext = (text: string): string | undefined => {
-    // Simple heuristic: look for "about X", "for Y", "on Z" where X,Y,Z might be company names
-    // More sophisticated NLP could be used here.
     const patterns = [
       /about\s+([A-Za-z0-9\s]+)/i,
       /for\s+([A-Za-z0-9\s]+)/i,
@@ -57,20 +62,13 @@ export default function ChatPage() {
     for (const pattern of patterns) {
       const match = text.match(pattern);
       if (match && match[1]) {
-        // Check if the match is not a generic term
         const potentialCompany = match[1].trim();
         if (potentialCompany.toLowerCase() !== "the company" && potentialCompany.split(" ").length <= 3) {
            return potentialCompany;
         }
       }
     }
-    // If no specific pattern, check if currentCompanyContext is still relevant or default to a primary subject.
-    // This part can be improved. For now, if no new company is detected, stick to the old one or clear it if the question is generic.
-    if (text.toLowerCase().includes("company") || text.toLowerCase().includes("firm") || text.toLowerCase().includes("organization")) {
-        // Heuristic: if these general terms are used without a clear new name, the context might be shifting or is unclear.
-        // If a company name is part of the question, it should ideally be caught by patterns above.
-    }
-    return undefined; // Or return currentCompanyContext if we want to maintain context across turns more aggressively
+    return undefined;
   };
 
 
@@ -78,36 +76,70 @@ export default function ChatPage() {
     if (e) e.preventDefault();
     if (!input.trim() || isLoading) return;
 
+    if (!user) {
+      toast({ title: "Authentication Error", description: "You must be logged in to chat.", variant: "destructive" });
+      setIsLoading(false);
+      return;
+    }
+
+    const userMessageText = input;
+    setInput(''); // Clear input immediately
+
+    // Add user message to UI
     const userMessage: Message = {
       id: Date.now().toString(),
-      text: input,
+      text: userMessageText,
       sender: 'user',
     };
     setMessages((prev) => [...prev, userMessage]);
-    setInput('');
     setIsLoading(true);
 
-    // Extract company name for context or use existing
-    let companyForQuery = extractCompanyContext(input) || currentCompanyContext;
-    if (extractCompanyContext(input)) { // If a new company is detected in the input
-        setCurrentCompanyContext(extractCompanyContext(input));
-        companyForQuery = extractCompanyContext(input);
-    } else if (!companyForQuery) {
-        // If no company context at all, prompt AI that it's a general question or ask for clarification
-         // For now, let's default to a placeholder if none is found.
-        // This can be improved by asking the user "Which company are you asking about?"
-        // Or by designing the AI prompt to handle general financial questions.
-        // For now, we'll send a generic company name if none is explicitly found or maintained.
-        // companyForQuery = "the user's previously mentioned company or a general context";
-        // Let's make it "a general financial question" if no company is found
-    }
+    let activeSessionId = currentSessionId;
 
+    // Create or update session
+    if (!activeSessionId) {
+      try {
+        // Try to determine company context for new session
+        const companyForNewSession = extractCompanyContext(userMessageText) || currentCompanyContext;
+        const newSessionId = await createSession(user.uid, companyForNewSession || null);
+        setCurrentSessionId(newSessionId);
+        activeSessionId = newSessionId;
+        toast({ title: "New Session Started", description: `Session ID: ${newSessionId}`, duration: 2000 });
+      } catch (error) {
+        console.error("Error creating session:", error);
+        toast({ title: "Session Error", description: "Could not start a new session. Chat history may not be saved.", variant: "destructive" });
+        // Allow chat to continue but history might not be saved
+      }
+    } else {
+      try {
+        await updateSessionLastActive(activeSessionId);
+      } catch (error) {
+        console.warn("Error updating session last active:", error);
+      }
+    }
+    
+    // Update current company context based on this message
+    const detectedCompany = extractCompanyContext(userMessageText);
+    if (detectedCompany) {
+        setCurrentCompanyContext(detectedCompany);
+    }
+    const companyForQuery = detectedCompany || currentCompanyContext;
+
+
+    let savedQueryId: string | undefined;
+    if (activeSessionId) {
+      try {
+        savedQueryId = await addQueryToSession(activeSessionId, userMessageText);
+      } catch (error) {
+        console.error("Error saving user query to Firestore:", error);
+        toast({ title: "Save Error", description: "Could not save your message to history.", variant: "destructive", duration: 2000 });
+      }
+    }
 
     try {
       const aiInput: AnswerFinancialQuestionsInput = {
-        question: userMessage.text as string,
-        // Ensure companyName is always a string, even if it's a placeholder for "general context"
-        companyName: companyForQuery || "the company in question", 
+        question: userMessageText,
+        companyName: companyForQuery, 
       };
       
       const aiResponse = await answerFinancialQuestions(aiInput);
@@ -116,14 +148,30 @@ export default function ChatPage() {
         id: (Date.now() + 1).toString(),
         text: aiResponse.answer,
         sender: 'ai',
-        companyContext: companyForQuery, // Store company context with AI message if desired
+        companyContext: companyForQuery, 
       };
       setMessages((prev) => [...prev, aiMessage]);
+
+      if (activeSessionId && savedQueryId) {
+        try {
+          await addSynthesizerResponseToSession(activeSessionId, {
+            response_text: aiResponse.answer,
+            query_id: savedQueryId,
+          });
+        } catch (error) {
+          console.error("Error saving AI response to Firestore:", error);
+          toast({ title: "Save Error", description: "Could not save AI response to history.", variant: "destructive", duration: 2000 });
+        }
+      } else if (activeSessionId && !savedQueryId) {
+        console.warn("AI response not saved to Firestore because the user query ID is missing (query save might have failed).");
+      }
+
     } catch (error) {
-      console.error("Error getting AI response:", error);
+      console.error("Error getting AI response:", error, "Details:", (error as any).message, (error as any).stack);
+      const errorMessageText = "Sorry, I encountered an error trying to respond. Please check the console for details or try again later.";
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: "Sorry, I encountered an error trying to respond. Please check the console for details or try again later.",
+        text: errorMessageText,
         sender: 'ai',
       };
       setMessages((prev) => [...prev, errorMessage]);
