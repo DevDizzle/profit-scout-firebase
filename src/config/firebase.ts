@@ -1,8 +1,8 @@
 
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
-import { getAnalytics, Analytics } from 'firebase/analytics';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import { getAuth, type Auth } from 'firebase/auth';
+import { getAnalytics, type Analytics } from 'firebase/analytics';
+import { getFirestore, type Firestore } from 'firebase/firestore';
 
 const VITE_RESERVED_PREFIX = "YOUR_"; // Common prefix for placeholders
 
@@ -49,7 +49,7 @@ export let db: Firestore | undefined; // Export Firestore instance
 // Check if all critical configurations are present before initializing
 if (
   firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith(VITE_RESERVED_PREFIX) &&
-  firebaseConfig.projectId && !firebaseConfig.projectId.startsWith(VITE_RESERVED_PREFIX) &&
+  firebaseConfig.projectId && !firebaseConfig.projectId.startsWith(VITE_RESERVED_PREFIX) && firebaseConfig.projectId === "profitscout-lx6bb" &&
   firebaseConfig.appId && !firebaseConfig.appId.startsWith(VITE_RESERVED_PREFIX) &&
   firebaseConfig.messagingSenderId && !firebaseConfig.messagingSenderId.startsWith(VITE_RESERVED_PREFIX)
 ) {
@@ -60,6 +60,8 @@ if (
   }
   auth = getAuth(app);
   db = getFirestore(app); // Initialize Firestore
+  console.log("[firebase.ts] Firestore client initialized for project:", firebaseConfig.projectId);
+
 
   // Initialize Firebase Analytics only on the client side and if measurementId is provided and app is initialized
   if (typeof window !== 'undefined' && firebaseConfig.measurementId && !firebaseConfig.measurementId.startsWith(VITE_RESERVED_PREFIX) && app) {
