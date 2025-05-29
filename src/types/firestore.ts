@@ -2,7 +2,7 @@
 import type { Timestamp } from 'firebase/firestore';
 
 // Base document structure with common ID and timestamp fields
-interface BaseDocument {
+export interface BaseDocument { // Added export here
   id: string; // Firestore auto-generated ID
   timestamp: Timestamp;
 }
@@ -59,3 +59,4 @@ export interface DataFileEntry {
   sector: string;
   created_at: Timestamp; // When this metadata entry was created
 }
+

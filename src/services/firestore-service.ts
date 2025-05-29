@@ -9,6 +9,10 @@ import {
   Timestamp,
   CollectionReference,
   DocumentData,
+  query,
+  orderBy,
+  limit,
+  getDocs,
 } from 'firebase/firestore';
 import type {
   SessionData,
@@ -18,6 +22,7 @@ import type {
   SummaryEntry,
   SessionMetadataEntry,
   DataFileEntry,
+  BaseDocument, // Ensure BaseDocument is imported
 } from '@/types/firestore';
 
 // Helper to assert db is initialized
@@ -128,13 +133,73 @@ export async function addDataFile(
   return docRef.id;
 }
 
-// Example: How you might query these (not part of this initial setup task, but for context)
-// import { query, where, getDocs, orderBy, limit } from 'firebase/firestore';
-//
-// export async function getSessionQueries(sessionId: string, count: number = 10) {
-//   const firestoreDb = getDbInstance();
-//   const queriesRef = collection(firestoreDb, 'sessions', sessionId, 'queries');
-//   const q = query(queriesRef, orderBy('timestamp', 'desc'), limit(count));
-//   const snapshot = await getDocs(q);
-//   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as QueryEntry));
-// }
+// --- Retrieving latest conversation data for summarization ---
+interface LatestConversationData {
+  latestQuery: QueryEntry | null;
+  latestSpecialistOutput: SpecialistOutputEntry | null;
+  latestSynthesizerResponse: SynthesizerResponseEntry | null;
+  latestSummary: SummaryEntry | null;
+}
+
+async function getLatestDocFromSubcollection<T extends BaseDocument>(
+  sessionId: string,
+  subcollectionName: string
+): Promise<T | null> {
+  const firestoreDb = getDbInstance();
+  const subColRef = collection(firestoreDb, 'sessions', sessionId, subcollectionName);
+  const q = query(subColRef, orderBy('timestamp', 'desc'), limit(1));
+  const snapshot = await getDocs(q);
+  if (snapshot.empty) {
+    return null;
+  }
+  // Cast to any before casting to T because DocumentData might not directly map to T
+  // but we know T is the correct structure from our types.
+  return { id: snapshot.docs[0].id, ...(snapshot.docs[0].data() as any) } as T;
+}
+
+export async function getLatestConversationDataForSummarization(
+  sessionId: string
+): Promise<LatestConversationData> {
+  const firestoreDb = getDbInstance();
+  if (!firestoreDb) { // Double check db initialization
+    console.error("[firestore-service] Firestore DB not initialized in getLatestConversationDataForSummarization");
+    return {
+        latestQuery: null,
+        latestSpecialistOutput: null,
+        latestSynthesizerResponse: null,
+        latestSummary: null,
+    };
+  }
+
+  try {
+    const [
+      latestQuery,
+      latestSpecialistOutput,
+      latestSynthesizerResponse,
+      latestSummary,
+    ] = await Promise.all([
+      getLatestDocFromSubcollection<QueryEntry>(sessionId, 'queries'),
+      getLatestDocFromSubcollection<SpecialistOutputEntry>(sessionId, 'specialist_outputs'),
+      getLatestDocFromSubcollection<SynthesizerResponseEntry>(sessionId, 'synthesizer_responses'),
+      getLatestDocFromSubcollection<SummaryEntry>(sessionId, 'summaries'),
+    ]);
+
+    return {
+      latestQuery,
+      latestSpecialistOutput,
+      latestSynthesizerResponse,
+      latestSummary,
+    };
+  } catch (error) {
+    const typedError = error as Error;
+    console.error(`[firestore-service] Error fetching latest conversation data for session ${sessionId}:`, typedError.message, typedError.stack);
+    // Depending on how critical this is, you might re-throw or return nulls
+    return {
+        latestQuery: null,
+        latestSpecialistOutput: null,
+        latestSynthesizerResponse: null,
+        latestSummary: null,
+    };
+  }
+}
+
