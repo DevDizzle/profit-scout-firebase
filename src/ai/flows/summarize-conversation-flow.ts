@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview A Genkit flow to summarize conversation context.
+ * @fileOverview A Genkit flow to summarize conversation context using full history.
  *
  * - summarizeConversation - Generates a summary of the conversation.
  * - SummarizeConversationInput - Input schema for the summarization flow.
@@ -13,12 +13,10 @@ import { z } from 'zod';
 
 // Define schemas internally
 const InternalSummarizeConversationInputSchema = z.object({
-  conversationContext: z.object({
-    previousSummaryText: z.string().optional().describe("The summary from the previous turn, if any."),
-    latestQueryText: z.string().describe("The most recent user query."),
-    latestSpecialistOutputText: z.string().optional().describe("The most recent specialist output, if relevant to the last query."),
-    latestSynthesizerResponseText: z.string().describe("The AI's latest response to the user."),
-  }),
+  previousSummaryText: z.string().optional().describe("The summary from the previous turn, if any."),
+  fullChatHistory: z.string().describe("A string containing all queries and synthesizer responses, ordered by timestamp."),
+  latestQueryText: z.string().describe("The most recent user query text."),
+  latestSynthesizerResponseText: z.string().describe("The AI's latest response to the user for the most recent query."),
 });
 export type SummarizeConversationInput = z.infer<typeof InternalSummarizeConversationInputSchema>;
 
@@ -49,19 +47,19 @@ export async function summarizeConversation(input: SummarizeConversationInput): 
 }
 
 const summarizationPrompt = ai.definePrompt({
-  name: 'summarizeConversationPrompt',
-  input: { schema: InternalSummarizeConversationInputSchema.shape.conversationContext },
+  name: 'summarizeFullConversationHistoryPrompt',
+  input: { schema: InternalSummarizeConversationInputSchema },
   output: { schema: InternalSummarizeConversationOutputSchema },
-  prompt: `Generate a concise summary of the conversation to provide context for future responses, capturing all discussed topics, companies (e.g., MSFT, AAPL), key metrics (e.g., revenue, P/E ratio), insights (e.g., management outlook, risks), industries (e.g., tech, retail), and general queries (e.g., financial literacy). Use the provided conversation data:
-Previous Summary (if any): {{{previousSummaryText}}}
-User Query: {{{latestQueryText}}}
-Specialist Output (if any): {{{latestSpecialistOutputText}}}
-AI Response: {{{latestSynthesizerResponseText}}}
-Keep the summary under 1000 characters, adjusting length to cover all relevant context (e.g., longer for multiple stocks/industries, shorter for single-topic discussions).`,
+  prompt: `Generate a summary to provide context for future responses, capturing all discussed topics, companies (e.g., MSFT, AAPL), key metrics (e.g., revenue, P/E ratio), insights (e.g., management outlook, risks), industries (e.g., tech, retail), and general queries (e.g., financial literacy) from the full conversation history. Use the provided data:
+Previous Summary: {{{previousSummaryText}}}
+Full Chat History:
+{{{fullChatHistory}}}
+Latest User Query: {{{latestQueryText}}}
+Latest AI Response: {{{latestSynthesizerResponseText}}}
+Keep the summary concise, under 1000 characters, adjusting length to cover all relevant context.`,
   config: {
-    // model: 'gemini-2.0-flash-001', // Removed: Model should be inherited from the ai instance or generate call
     temperature: 0.1,
-    maxOutputTokens: 250,
+    maxOutputTokens: 250, // Supports ~1000 characters
     safetySettings: [
       { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
       { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
@@ -78,16 +76,21 @@ const summarizeConversationGenkitFlow = ai.defineFlow(
     outputSchema: InternalSummarizeConversationOutputSchema,
   },
   async (input: SummarizeConversationInput): Promise<SummarizeConversationOutput> => {
-    console.log('[summarizeConversationGenkitFlow] Processing summarization prompt.');
+    console.log('[summarizeConversationGenkitFlow] Processing summarization prompt with full history.');
+    console.log('[summarizeConversationGenkitFlow] Input Details:', {
+      previousSummaryTextExists: !!input.previousSummaryText,
+      fullChatHistoryLength: input.fullChatHistory.length,
+      latestQueryText: input.latestQueryText.substring(0, 100) + "...",
+      latestSynthesizerResponseText: input.latestSynthesizerResponseText.substring(0, 100) + "..."
+    });
 
-    const { output } = await summarizationPrompt(input.conversationContext);
+    const {output} = await summarizationPrompt(input);
 
     if (!output || typeof output.summaryText === 'undefined' || output.summaryText.trim() === "") {
       console.warn("[summarizeConversationGenkitFlow] AI flow did not produce a valid summary text. Output from AI:", output);
       return { summaryText: "" };
     }
-    console.log('[summarizeConversationGenkitFlow] Summary text generated.');
+    console.log('[summarizeConversationGenkitFlow] Summary text generated successfully.');
     return output;
   }
 );
-
