@@ -17,7 +17,7 @@ import {
   addQueryToSession,
   addSynthesizerResponseToSession,
   updateSessionLastActive,
-  addSummaryToSession, // Import addSummaryToSession
+  // addSummaryToSession, // No longer called directly from here, summary is saved via API call by this client
 } from '@/services/firestore-service';
 
 interface Message {
@@ -155,7 +155,6 @@ export default function ChatPage() {
       const aiResponse: AnswerFinancialQuestionsOutput = await answerFinancialQuestions(aiInput);
       console.log("[ChatPage] Received response from answerFinancialQuestions flow:", { 
         answer: aiResponse.answer.substring(0,50), 
-        summaryTextExists: !!aiResponse.summaryText 
       });
       
       const aiMessage: Message = {
@@ -166,36 +165,43 @@ export default function ChatPage() {
       };
       setMessages((prev) => [...prev, aiMessage]);
 
-      // Save AI response and summary to Firestore
+      // Save AI response to Firestore
       if (activeSessionId && savedQueryId) {
         try {
-          // Save the main AI response
           await addSynthesizerResponseToSession(activeSessionId, {
             response_text: aiResponse.answer,
             query_id: savedQueryId,
           });
           console.log(`[ChatPage] AI (synthesizer) response saved to Firestore for query ID: ${savedQueryId}`);
 
-          // Save the summary if it exists
-          if (aiResponse.summaryText && aiResponse.summaryText.trim() !== "") {
-            console.log(`[ChatPage] Attempting to save summary to Firestore: "${aiResponse.summaryText.substring(0, 50)}..." for query ID: ${savedQueryId}`);
-            await addSummaryToSession(activeSessionId, {
-              summary_text: aiResponse.summaryText,
-              query_id: savedQueryId, 
+          // After saving the AI response, trigger the summarization API endpoint
+          console.log(`[ChatPage] Triggering summarization for session: ${activeSessionId}, query: ${savedQueryId}`);
+          const summaryApiResponse = await fetch('/api/summarize-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId: activeSessionId, queryId: savedQueryId }),
+          });
+
+          if (!summaryApiResponse.ok) {
+            const errorData = await summaryApiResponse.json().catch(() => ({ error: "Failed to parse error response from summarization API" }));
+            console.error(`[ChatPage] Error calling /api/summarize-session: ${summaryApiResponse.status}`, errorData);
+            toast({
+              title: "Summarization Error",
+              description: `Could not trigger session summarization. Status: ${summaryApiResponse.status}. ${errorData.error || "Unknown error."}`,
+              variant: "destructive",
             });
-            console.log(`[ChatPage] Summary saved to Firestore for query ID: ${savedQueryId}`);
-            // Optional: Add a subtle toast for summary save if desired, or just log it
-            // toast({ title: "Context Updated", description: "Conversation summary saved.", duration: 1500 });
           } else {
-            console.log("[ChatPage] No summary text received from AI flow or summary was empty. Skipping summary save.");
+            const summaryData = await summaryApiResponse.json();
+            console.log(`[ChatPage] Summarization API call successful. Summary ID: ${summaryData.summaryId}, Summary: "${(summaryData.summaryText || "").substring(0,50)}..."`);
+            // Optionally: toast({ title: "Context Updated", description: "Conversation summary processed.", duration: 1500 });
           }
 
-        } catch (firestoreError) {
-          console.error("Error saving AI response or summary to Firestore:", firestoreError);
-          toast({ title: "Save Error", description: "Could not save AI response or summary to history. "  + (firestoreError instanceof Error ? firestoreError.message : ""), variant: "destructive", duration: 2000 });
+        } catch (firestoreOrApiError) {
+          console.error("Error saving AI response or triggering summarization API:", firestoreOrApiError);
+          toast({ title: "Post-Processing Error", description: "Could not save AI response or process summary. "  + (firestoreOrApiError instanceof Error ? firestoreOrApiError.message : ""), variant: "destructive", duration: 2000 });
         }
       } else { 
-        console.warn("[ChatPage] AI response/summary not saved to Firestore because session/query ID was missing.");
+        console.warn("[ChatPage] AI response not saved or summarization not triggered because session/query ID was missing.");
       }
 
     } catch (error) {
