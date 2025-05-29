@@ -1,5 +1,4 @@
 
-'use server';
 /**
  * @fileOverview A Genkit tool for fetching document content from Google Cloud Storage.
  *
@@ -35,14 +34,7 @@ export const fetchDocumentFromGCSTool = ai.defineTool(
       };
     } catch (error) {
       console.error(`[FetchDocumentGCSTool] Error fetching GCS document:`, error);
-      // Propagate a more user-friendly error or a structured error
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred while fetching the document from GCS.";
-      // The LLM will receive this error message if the tool call fails.
-      // Depending on the LLM's instructions, it might try to inform the user or try a different approach.
-      // It's important that this output still conforms to the outputSchema if possible, or the flow might break.
-      // For now, we'll re-throw, allowing the flow to handle it or report the tool error.
-      // More sophisticated: return a specific error structure within the output schema.
-      // For simplicity, we let the error propagate to the flow.
       throw new Error(`Tool fetchDocumentFromGCS failed: ${errorMessage}`);
     }
   }

@@ -1,4 +1,4 @@
-'use server';
+
 /**
  * @fileOverview A tool for fetching generic company data.
  *
