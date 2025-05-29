@@ -41,7 +41,8 @@ export async function summarizeConversation(input: SummarizeConversationInput): 
     const typedError = error as Error;
     console.error(
       "[summarizeConversation exported function] CRITICAL ERROR DURING SUMMARIZATION. Input received, Error_Name:", typedError.name,
-      "Error_Message:", typedError.message, "Error_Stack:", typedError.stack
+      "Error_Message:", typedError.message, "Error_Stack:", typedError.stack,
+      "Full_Error_Object:", JSON.stringify(error, Object.getOwnPropertyNames(error))
     );
     return { summaryText: "" }; // Return empty summary on error
   }
@@ -58,10 +59,10 @@ Specialist Output (if any): {{{latestSpecialistOutputText}}}
 AI Response: {{{latestSynthesizerResponseText}}}
 Keep the summary under 1000 characters, adjusting length to cover all relevant context (e.g., longer for multiple stocks/industries, shorter for single-topic discussions).`,
   config: {
-    model: 'gemini-2.0-flash-001', // or simply 'gemini-2.0-flash' if versioning is automatic
+    // model: 'gemini-2.0-flash-001', // Removed: Model should be inherited from the ai instance or generate call
     temperature: 0.1,
-    maxOutputTokens: 250, 
-    safetySettings: [ 
+    maxOutputTokens: 250,
+    safetySettings: [
       { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
       { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
       { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
@@ -78,14 +79,15 @@ const summarizeConversationGenkitFlow = ai.defineFlow(
   },
   async (input: SummarizeConversationInput): Promise<SummarizeConversationOutput> => {
     console.log('[summarizeConversationGenkitFlow] Processing summarization prompt.');
-    
+
     const { output } = await summarizationPrompt(input.conversationContext);
 
     if (!output || typeof output.summaryText === 'undefined' || output.summaryText.trim() === "") {
       console.warn("[summarizeConversationGenkitFlow] AI flow did not produce a valid summary text. Output from AI:", output);
-      return { summaryText: "" }; 
+      return { summaryText: "" };
     }
     console.log('[summarizeConversationGenkitFlow] Summary text generated.');
     return output;
   }
 );
+
