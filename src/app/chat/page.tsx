@@ -86,7 +86,7 @@ export default function ChatPage() {
     setInput(''); 
 
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: Date.now().toString(), // Using Date.now() as a temporary client-side ID
       text: userMessageText,
       sender: 'user',
     };
@@ -97,7 +97,7 @@ export default function ChatPage() {
 
     if (!activeSessionId) {
       try {
-        console.log(`[ChatPage] Attempting to create session for user UID: ${user.uid}`); // Diagnostic log
+        console.log(`[ChatPage] Attempting to create session for user UID: ${user.uid}`);
         const companyForNewSession = extractCompanyContext(userMessageText) || currentCompanyContext;
         const newSessionId = await createSession(user.uid, companyForNewSession || null);
         setCurrentSessionId(newSessionId);
@@ -106,8 +106,8 @@ export default function ChatPage() {
       } catch (error) {
         console.error("Error creating session:", error);
         toast({ title: "Session Creation Error", description: "Could not start a new session. " + (error instanceof Error ? error.message : "Please check console."), variant: "destructive" });
-        setIsLoading(false); // Stop loading if session creation fails
-        return; // Important: stop further processing if session can't be created
+        setIsLoading(false);
+        return; 
       }
     } else {
       try {
@@ -127,20 +127,37 @@ export default function ChatPage() {
     let savedQueryId: string | undefined;
     if (activeSessionId) {
       try {
+        // Use userMessage.id as the queryId for consistency if it's guaranteed unique,
+        // otherwise rely on Firestore's auto-generated ID returned by addQueryToSession.
+        // For simplicity, we assume addQueryToSession returns the ID.
         savedQueryId = await addQueryToSession(activeSessionId, userMessageText);
+        console.log(`[ChatPage] User query saved to Firestore with ID: ${savedQueryId}`);
       } catch (error) {
         console.error("Error saving user query to Firestore:", error);
         toast({ title: "Save Error", description: "Could not save your message to history.", variant: "destructive", duration: 2000 });
+        // Potentially stop here if saving query is critical before calling AI
       }
+    }
+
+    // Ensure we have a session and query ID before calling the AI flow that triggers summarization
+    if (!activeSessionId || !savedQueryId) {
+        console.error("[ChatPage] Missing activeSessionId or savedQueryId. Cannot proceed with AI call and summarization.");
+        toast({ title: "Error", description: "Session or Query ID missing. Cannot proceed.", variant: "destructive" });
+        setIsLoading(false);
+        return;
     }
 
     try {
       const aiInput: AnswerFinancialQuestionsInput = {
         question: userMessageText,
-        companyName: companyForQuery, 
+        companyName: companyForQuery,
+        sessionId: activeSessionId, // Pass sessionId
+        queryId: savedQueryId,      // Pass queryId (Firestore ID of the user's message)
       };
       
+      console.log("[ChatPage] Calling answerFinancialQuestions flow with input:", { ...aiInput, question:aiInput.question.substring(0,50) }); // Log sensitive data carefully
       const aiResponse = await answerFinancialQuestions(aiInput);
+      console.log("[ChatPage] Received response from answerFinancialQuestions flow:", { answer: aiResponse.answer.substring(0,50) });
       
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -156,16 +173,17 @@ export default function ChatPage() {
             response_text: aiResponse.answer,
             query_id: savedQueryId,
           });
+          console.log(`[ChatPage] AI response saved to Firestore for query ID: ${savedQueryId}`);
         } catch (error) {
           console.error("Error saving AI response to Firestore:", error);
           toast({ title: "Save Error", description: "Could not save AI response to history.", variant: "destructive", duration: 2000 });
         }
-      } else if (activeSessionId && !savedQueryId) {
-        console.warn("AI response not saved to Firestore because the user query ID is missing (query save might have failed).");
+      } else { // This case should ideally not be reached due to the check above
+        console.warn("[ChatPage] AI response not saved to Firestore because session/query ID was missing (this should not happen).");
       }
 
     } catch (error) {
-      console.error("Error getting AI response:", error, "Details:", (error as any).message, (error as any).stack);
+      console.error("Error getting AI response from flow:", error, "Details:", (error as any).message, (error as any).stack);
       const errorMessageText = "Sorry, I encountered an error trying to respond. Please check the console for details or try again later.";
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),

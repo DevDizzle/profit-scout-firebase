@@ -2,19 +2,24 @@
 'use server';
 
 /**
- * @fileOverview A flow to answer general questions using a conversational AI.
+ * @fileOverview A flow to answer general questions using a conversational AI,
+ * and then trigger conversation summarization.
  *
- * - answerFinancialQuestions - A function that answers questions based on the input.
+ * - answerFinancialQuestions - A function that answers questions and triggers summarization.
  * - AnswerFinancialQuestionsInput - The input type for the answerFinancialQuestions function.
  * - AnswerFinancialQuestionsOutput - The return type for the answerFinancialQuestions function.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
+import { summarizeConversation, type SummarizeConversationInput } from './summarize-conversation-flow';
+import { getLatestConversationDataForSummarization, addSummaryToSession } from '@/services/firestore-service';
 
 const AnswerFinancialQuestionsInputSchema = z.object({
   question: z.string().describe('The user question to answer.'),
   companyName: z.string().optional().describe('The name of the company, if relevant (currently ignored by the simplified prompt).'),
+  sessionId: z.string().describe("The active Firestore session ID for summarization context."),
+  queryId: z.string().describe("The ID of the user's query in Firestore, to link the summary."),
 });
 export type AnswerFinancialQuestionsInput = z.infer<typeof AnswerFinancialQuestionsInputSchema>;
 
@@ -26,32 +31,31 @@ export type AnswerFinancialQuestionsOutput = z.infer<typeof AnswerFinancialQuest
 export async function answerFinancialQuestions(
   input: AnswerFinancialQuestionsInput
 ): Promise<AnswerFinancialQuestionsOutput> {
-  console.log('[answerFinancialQuestions exported function] ENTERED. Input:', JSON.stringify(input));
+  console.log('[answerFinancialQuestions exported function] ENTERED. Input keys:', Object.keys(input).join(', '));
   try {
-    console.log('[answerFinancialQuestions exported function] Attempting to call answerFinancialQuestionsFlow with input:', input);
+    console.log('[answerFinancialQuestions exported function] Attempting to call answerFinancialQuestionsFlow with input.');
     const result = await answerFinancialQuestionsFlow(input);
-    console.log('[answerFinancialQuestions exported function] Flow returned successfully:', JSON.stringify(result));
+    console.log('[answerFinancialQuestions exported function] Flow returned successfully.');
     return result;
   } catch (error) {
     const typedError = error as Error;
     console.error(
-      "[answerFinancialQuestions exported function] CRITICAL ERROR DURING FLOW INVOCATION OR PROCESSING. Input:",
-      JSON.stringify(input),
+      "[answerFinancialQuestions exported function] CRITICAL ERROR DURING FLOW INVOCATION OR PROCESSING. Input keys:",
+      Object.keys(input).join(', '),
       "Error_Name:", typedError.name,
       "Error_Message:", typedError.message,
       "Error_Stack:", typedError.stack,
       "Full_Error_Object_Details:", JSON.stringify(error, Object.getOwnPropertyNames(error))
     );
-    // Ensure the returned object matches the schema expected by the client
     return {
       answer: "An unexpected server-side error occurred while initiating the AI flow. The technical team has been notified. Please try again later."
     };
   }
 }
 
-const prompt = ai.definePrompt({
-  name: 'answerFinancialQuestionsPrompt',
-  input: {schema: AnswerFinancialQuestionsInputSchema},
+const mainAnswerPrompt = ai.definePrompt({
+  name: 'answerFinancialQuestionsMainPrompt', // Renamed to avoid conflict if we have other prompts
+  input: {schema: AnswerFinancialQuestionsInputSchema.pick({ question: true, companyName: true })}, // Only needs question and companyName
   output: {schema: AnswerFinancialQuestionsOutputSchema},
   system: `You are a friendly and helpful conversational AI assistant for ProfitScout.
 - Respond politely and conversationally to the user's questions.
@@ -76,41 +80,75 @@ const answerFinancialQuestionsFlow = ai.defineFlow(
     outputSchema: AnswerFinancialQuestionsOutputSchema,
   },
   async (input: AnswerFinancialQuestionsInput): Promise<AnswerFinancialQuestionsOutput> => {
-    const promptInput = {
-      question: input.question,
-      // companyName is not used in the current simplified prompt, but good to pass if available
-      // companyName: input.companyName,
-    };
-    console.log('[answerFinancialQuestionsFlow] ENTERED. Processing promptInput:', JSON.stringify(promptInput));
+    const { sessionId, queryId, question, companyName } = input;
+    const promptInputForAnswer = { question, companyName };
+    
+    console.log('[answerFinancialQuestionsFlow] ENTERED. Processing promptInputForAnswer keys:', Object.keys(promptInputForAnswer).join(', '));
+    console.log(`[answerFinancialQuestionsFlow] SessionID: ${sessionId}, QueryID: ${queryId}`);
+
+    let synthesizerResponseText: string;
 
     try {
-      console.log('[answerFinancialQuestionsFlow] Calling prompt with input:', promptInput);
-      const {output} = await prompt(promptInput);
+      console.log('[answerFinancialQuestionsFlow] Calling mainAnswerPrompt with input.');
+      const {output} = await mainAnswerPrompt(promptInputForAnswer);
 
       if (!output || typeof output.answer === 'undefined') {
-        console.warn("[answerFinancialQuestionsFlow] AI flow did not produce a valid output structure. Input:", promptInput, "Output from AI:", output);
-        return { answer: "I'm having a little trouble formulating a response right now. Could you try rephrasing?" };
+        console.warn("[answerFinancialQuestionsFlow] AI flow did not produce a valid output structure for main answer. Output from AI:", output);
+        synthesizerResponseText = "I'm having a little trouble formulating a response right now. Could you try rephrasing?";
+      } else if (output.answer.trim() === "") {
+         console.warn("[answerFinancialQuestionsFlow] AI flow produced an empty answer for main answer. Output from AI:", output);
+         synthesizerResponseText = "I received your message, but I don't have a specific response for that right now. How can I assist you with financial questions?";
+      } else {
+        console.log('[answerFinancialQuestionsFlow] Received output from mainAnswerPrompt successfully.');
+        synthesizerResponseText = output.answer;
       }
-      if (output.answer.trim() === "") {
-         console.warn("[answerFinancialQuestionsFlow] AI flow produced an empty answer. Input:", promptInput, "Output from AI:", output);
-         return { answer: "I received your message, but I don't have a specific response for that right now. How can I assist you with financial questions?" };
-      }
-      console.log('[answerFinancialQuestionsFlow] Received output from AI successfully:', JSON.stringify(output));
-      return output;
     } catch (error) {
       const typedError = error as Error;
       console.error(
-        "[answerFinancialQuestionsFlow] CRITICAL ERROR DURING AI PROMPT CALL. Input:",
-        JSON.stringify(promptInput),
-        "Error_Name:", typedError.name,
-        "Error_Message:", typedError.message,
-        "Error_Stack:", typedError.stack,
+        "[answerFinancialQuestionsFlow] CRITICAL ERROR DURING AI mainAnswerPrompt CALL. Error_Name:", typedError.name,
+        "Error_Message:", typedError.message, "Error_Stack:", typedError.stack,
         "Full_Error_Object_Details:", JSON.stringify(error, Object.getOwnPropertyNames(error))
       );
-      // Return a structured error response to the client instead of re-throwing
-      return {
-        answer: "I'm sorry, an unexpected error occurred while trying to process your request. The technical team has been notified. Please try again in a moment."
-      };
+      synthesizerResponseText = "I'm sorry, an unexpected error occurred while trying to process your request for the main answer. The technical team has been notified. Please try again in a moment.";
+      // Return immediately if main answer generation fails catastrophically
+      return { answer: synthesizerResponseText };
     }
+
+    // Asynchronously trigger summarization - do not wait for it to complete to send response to user
+    (async () => {
+      try {
+        console.log(`[answerFinancialQuestionsFlow] Attempting background summarization for session: ${sessionId}, query: ${queryId}`);
+        const conversationDataFromDb = await getLatestConversationDataForSummarization(sessionId);
+        
+        const summaryFlowInput: SummarizeConversationInput = {
+          conversationContext: {
+            previousSummaryText: conversationDataFromDb.latestSummary?.summary_text,
+            latestQueryText: question, // Current user query
+            latestSpecialistOutputText: conversationDataFromDb.latestSpecialistOutput?.output_text, // From previous turn in DB
+            latestSynthesizerResponseText: synthesizerResponseText, // Current AI response
+          }
+        };
+        
+        const summaryOutput = await summarizeConversation(summaryFlowInput);
+        
+        if (summaryOutput && summaryOutput.summaryText) {
+          await addSummaryToSession(sessionId, {
+            summary_text: summaryOutput.summaryText,
+            query_id: queryId,
+          });
+          console.log(`[answerFinancialQuestionsFlow] Successfully generated and saved summary for session: ${sessionId}`);
+        } else {
+          console.warn(`[answerFinancialQuestionsFlow] Summarization did not produce text for session: ${sessionId}`);
+        }
+      } catch (summarizationError) {
+        const typedSummarizationError = summarizationError as Error;
+        console.error(
+          `[answerFinancialQuestionsFlow] Error during background summarization for session ${sessionId}:`,
+          typedSummarizationError.name, typedSummarizationError.message, typedSummarizationError.stack
+        );
+      }
+    })();
+
+    return { answer: synthesizerResponseText };
   }
 );
