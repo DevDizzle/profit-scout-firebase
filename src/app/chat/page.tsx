@@ -10,13 +10,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Send, User, Bot, Loader2 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { answerFinancialQuestions, AnswerFinancialQuestionsInput } from '@/ai/flows/answer-financial-questions';
+import { answerFinancialQuestions, type AnswerFinancialQuestionsInput, type AnswerFinancialQuestionsOutput } from '@/ai/flows/answer-financial-questions';
 import { useToast } from '@/hooks/use-toast';
 import {
   createSession,
   addQueryToSession,
   addSynthesizerResponseToSession,
   updateSessionLastActive,
+  addSummaryToSession, // Import addSummaryToSession
 } from '@/services/firestore-service';
 
 interface Message {
@@ -86,7 +87,7 @@ export default function ChatPage() {
     setInput(''); 
 
     const userMessage: Message = {
-      id: Date.now().toString(), // Using Date.now() as a temporary client-side ID
+      id: Date.now().toString(), 
       text: userMessageText,
       sender: 'user',
     };
@@ -127,19 +128,14 @@ export default function ChatPage() {
     let savedQueryId: string | undefined;
     if (activeSessionId) {
       try {
-        // Use userMessage.id as the queryId for consistency if it's guaranteed unique,
-        // otherwise rely on Firestore's auto-generated ID returned by addQueryToSession.
-        // For simplicity, we assume addQueryToSession returns the ID.
         savedQueryId = await addQueryToSession(activeSessionId, userMessageText);
         console.log(`[ChatPage] User query saved to Firestore with ID: ${savedQueryId}`);
       } catch (error) {
         console.error("Error saving user query to Firestore:", error);
         toast({ title: "Save Error", description: "Could not save your message to history.", variant: "destructive", duration: 2000 });
-        // Potentially stop here if saving query is critical before calling AI
       }
     }
 
-    // Ensure we have a session and query ID before calling the AI flow that triggers summarization
     if (!activeSessionId || !savedQueryId) {
         console.error("[ChatPage] Missing activeSessionId or savedQueryId. Cannot proceed with AI call and summarization.");
         toast({ title: "Error", description: "Session or Query ID missing. Cannot proceed.", variant: "destructive" });
@@ -151,13 +147,16 @@ export default function ChatPage() {
       const aiInput: AnswerFinancialQuestionsInput = {
         question: userMessageText,
         companyName: companyForQuery,
-        sessionId: activeSessionId, // Pass sessionId
-        queryId: savedQueryId,      // Pass queryId (Firestore ID of the user's message)
+        sessionId: activeSessionId, 
+        queryId: savedQueryId,      
       };
       
-      console.log("[ChatPage] Calling answerFinancialQuestions flow with input:", { ...aiInput, question:aiInput.question.substring(0,50) }); // Log sensitive data carefully
-      const aiResponse = await answerFinancialQuestions(aiInput);
-      console.log("[ChatPage] Received response from answerFinancialQuestions flow:", { answer: aiResponse.answer.substring(0,50) });
+      console.log("[ChatPage] Calling answerFinancialQuestions flow with input:", { ...aiInput, question:aiInput.question.substring(0,50) });
+      const aiResponse: AnswerFinancialQuestionsOutput = await answerFinancialQuestions(aiInput);
+      console.log("[ChatPage] Received response from answerFinancialQuestions flow:", { 
+        answer: aiResponse.answer.substring(0,50), 
+        summaryTextExists: !!aiResponse.summaryText 
+      });
       
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -167,19 +166,36 @@ export default function ChatPage() {
       };
       setMessages((prev) => [...prev, aiMessage]);
 
+      // Save AI response and summary to Firestore
       if (activeSessionId && savedQueryId) {
         try {
+          // Save the main AI response
           await addSynthesizerResponseToSession(activeSessionId, {
             response_text: aiResponse.answer,
             query_id: savedQueryId,
           });
-          console.log(`[ChatPage] AI response saved to Firestore for query ID: ${savedQueryId}`);
-        } catch (error) {
-          console.error("Error saving AI response to Firestore:", error);
-          toast({ title: "Save Error", description: "Could not save AI response to history.", variant: "destructive", duration: 2000 });
+          console.log(`[ChatPage] AI (synthesizer) response saved to Firestore for query ID: ${savedQueryId}`);
+
+          // Save the summary if it exists
+          if (aiResponse.summaryText && aiResponse.summaryText.trim() !== "") {
+            console.log(`[ChatPage] Attempting to save summary to Firestore: "${aiResponse.summaryText.substring(0, 50)}..." for query ID: ${savedQueryId}`);
+            await addSummaryToSession(activeSessionId, {
+              summary_text: aiResponse.summaryText,
+              query_id: savedQueryId, 
+            });
+            console.log(`[ChatPage] Summary saved to Firestore for query ID: ${savedQueryId}`);
+            // Optional: Add a subtle toast for summary save if desired, or just log it
+            // toast({ title: "Context Updated", description: "Conversation summary saved.", duration: 1500 });
+          } else {
+            console.log("[ChatPage] No summary text received from AI flow or summary was empty. Skipping summary save.");
+          }
+
+        } catch (firestoreError) {
+          console.error("Error saving AI response or summary to Firestore:", firestoreError);
+          toast({ title: "Save Error", description: "Could not save AI response or summary to history. "  + (firestoreError instanceof Error ? firestoreError.message : ""), variant: "destructive", duration: 2000 });
         }
-      } else { // This case should ideally not be reached due to the check above
-        console.warn("[ChatPage] AI response not saved to Firestore because session/query ID was missing (this should not happen).");
+      } else { 
+        console.warn("[ChatPage] AI response/summary not saved to Firestore because session/query ID was missing.");
       }
 
     } catch (error) {
