@@ -3,7 +3,7 @@
 
 /**
  * @fileOverview A flow to answer general questions using a conversational AI.
- * It fetches the latest summary for context and then triggers full history summarization
+ * It fetches the latest summary for context (passed by client) and then triggers full history summarization
  * via a separate API endpoint after generating its response.
  *
  * - answerFinancialQuestions - A function that answers questions.
@@ -13,23 +13,20 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
-// Removed SummarizeConversationInput and summarizeConversation imports as summarization is now triggered via API
-import { 
-  getLatestSummary,
-  // Removed getFullConversationHistory and addSummaryToSession as they are handled by the API route
-} from '@/services/firestore-service'; 
+// Removed Firestore service import as context is passed by client
 
 const AnswerFinancialQuestionsInputSchema = z.object({
   question: z.string().describe('The user question to answer.'),
   companyName: z.string().optional().describe('The name of the company, if relevant.'),
   sessionId: z.string().describe("The active Firestore session ID for context."),
   queryId: z.string().describe("The ID of the current user query in Firestore. Not directly used by this flow but passed by client."),
+  conversationSummary: z.string().optional().describe("A summary of the preceding conversation context, if available, provided by the client."),
 });
 export type AnswerFinancialQuestionsInput = z.infer<typeof AnswerFinancialQuestionsInputSchema>;
 
 const AnswerFinancialQuestionsOutputSchema = z.object({
   answer: z.string().describe('The answer to the question.'),
-  // summaryText is removed, as client will call /api/summarize-session
+  // summaryText is removed from here, client will trigger summarization via API
 });
 export type AnswerFinancialQuestionsOutput = z.infer<typeof AnswerFinancialQuestionsOutputSchema>;
 
@@ -98,37 +95,26 @@ const answerFinancialQuestionsFlow = ai.defineFlow(
     outputSchema: AnswerFinancialQuestionsOutputSchema,
   },
   async (input: AnswerFinancialQuestionsInput): Promise<AnswerFinancialQuestionsOutput> => {
-    const { sessionId, question, companyName, queryId } = input;
+    const { sessionId, question, companyName, queryId, conversationSummary } = input;
     
     console.log(`[answerFinancialQuestionsFlow] ENTERED. Processing input. SessionID: ${sessionId}, QueryID: ${queryId}`);
-
-    // 1. Fetch latest summary for context for the main answer prompt
-    let latestSummaryTextForPrompt: string | undefined;
-    try {
-      console.log(`[answerFinancialQuestionsFlow] Fetching latest summary for session: ${sessionId} to use as prompt context.`);
-      const latestSummaryDoc = await getLatestSummary(sessionId);
-      latestSummaryTextForPrompt = latestSummaryDoc?.summary_text;
-      if (latestSummaryTextForPrompt) {
-        console.log(`[answerFinancialQuestionsFlow] Using latest summary for prompt context: "${latestSummaryTextForPrompt.substring(0,70)}..."`);
-      } else {
-        console.log('[answerFinancialQuestionsFlow] No previous summary found to provide as context to main prompt.');
-      }
-    } catch (error) {
-      console.warn('[answerFinancialQuestionsFlow] Error fetching latest summary for prompt context:', error);
-      // Proceed without summary context if fetching fails
+    if (conversationSummary) {
+      console.log(`[answerFinancialQuestionsFlow] Using conversation summary provided by client: "${conversationSummary.substring(0,70)}..."`);
+    } else {
+      console.log('[answerFinancialQuestionsFlow] No conversation summary provided by client for prompt context.');
     }
-
+    
     const promptInputForAnswer = { 
       question, 
       companyName, 
-      conversationSummary: latestSummaryTextForPrompt 
+      conversationSummary // This comes directly from the client now
     };
     
     let synthesizerResponseText: string;
 
-    // 2. Get the main AI answer
+    // Get the main AI answer
     try {
-      console.log('[answerFinancialQuestionsFlow] Calling mainAnswerPrompt with input including conversation summary (if any).');
+      console.log('[answerFinancialQuestionsFlow] Calling mainAnswerPrompt with input including conversation summary (if any from client).');
       const {output} = await mainAnswerPrompt(promptInputForAnswer);
 
       if (!output || typeof output.answer === 'undefined') {
@@ -152,10 +138,11 @@ const answerFinancialQuestionsFlow = ai.defineFlow(
       throw error; 
     }
 
-    // 3. Summarization is now triggered by the client calling /api/summarize-session
-    // This flow's responsibility is to return the answer.
+    // Summarization is triggered by the client calling /api/summarize-session after this flow returns.
+    // This flow's responsibility is to return the main answer.
 
     console.log(`[answerFinancialQuestionsFlow] Returning answer: "${synthesizerResponseText.substring(0,70)}..."`);
     return { answer: synthesizerResponseText };
   }
 );
+

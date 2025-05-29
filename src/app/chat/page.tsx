@@ -17,7 +17,7 @@ import {
   addQueryToSession,
   addSynthesizerResponseToSession,
   updateSessionLastActive,
-  // addSummaryToSession, // No longer called directly from here, summary is saved via API call by this client
+  getLatestSummary, // Import getLatestSummary
 } from '@/services/firestore-service';
 
 interface Message {
@@ -144,14 +144,33 @@ export default function ChatPage() {
     }
 
     try {
+      // Fetch latest summary before calling the AI flow
+      let previousSummaryText: string | undefined;
+      if (activeSessionId) {
+        try {
+          console.log(`[ChatPage] Fetching latest summary for session ${activeSessionId} to provide as context.`);
+          const latestSummaryDoc = await getLatestSummary(activeSessionId);
+          previousSummaryText = latestSummaryDoc?.summary_text;
+          if (previousSummaryText) {
+            console.log(`[ChatPage] Using latest summary for AI prompt context: "${previousSummaryText.substring(0, 70)}..."`);
+          } else {
+            console.log(`[ChatPage] No previous summary found for session ${activeSessionId}.`);
+          }
+        } catch (summaryError) {
+          console.warn(`[ChatPage] Error fetching latest summary for session ${activeSessionId}:`, summaryError);
+          // Proceed without summary if fetching fails
+        }
+      }
+
       const aiInput: AnswerFinancialQuestionsInput = {
         question: userMessageText,
         companyName: companyForQuery,
         sessionId: activeSessionId, 
-        queryId: savedQueryId,      
+        queryId: savedQueryId,
+        conversationSummary: previousSummaryText, // Pass the fetched summary
       };
       
-      console.log("[ChatPage] Calling answerFinancialQuestions flow with input:", { ...aiInput, question:aiInput.question.substring(0,50) });
+      console.log("[ChatPage] Calling answerFinancialQuestions flow with input:", { ...aiInput, question:aiInput.question.substring(0,50), conversationSummary: aiInput.conversationSummary ? aiInput.conversationSummary.substring(0,50) + '...' : undefined });
       const aiResponse: AnswerFinancialQuestionsOutput = await answerFinancialQuestions(aiInput);
       console.log("[ChatPage] Received response from answerFinancialQuestions flow:", { 
         answer: aiResponse.answer.substring(0,50), 
@@ -175,7 +194,7 @@ export default function ChatPage() {
           console.log(`[ChatPage] AI (synthesizer) response saved to Firestore for query ID: ${savedQueryId}`);
 
           // After saving the AI response, trigger the summarization API endpoint
-          console.log(`[ChatPage] Triggering summarization for session: ${activeSessionId}, query: ${savedQueryId}`);
+          console.log(`[ChatPage] Triggering summarization via API for session: ${activeSessionId}, query: ${savedQueryId}`);
           const summaryApiResponse = await fetch('/api/summarize-session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -205,7 +224,7 @@ export default function ChatPage() {
       }
 
     } catch (error) {
-      console.error("Error getting AI response from flow:", error, "Details:", (error as any).message, (error as any).stack);
+      console.error("Error getting AI response from flow:", error, "Details:", (error as Error).message, (error as Error).stack);
       const errorMessageText = "Sorry, I encountered an error trying to respond. Please check the console for details or try again later.";
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -313,3 +332,4 @@ export default function ChatPage() {
     </AppShell>
   );
 }
+
