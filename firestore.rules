@@ -1,33 +1,63 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Default deny all access to any path not explicitly matched below.
-    match /{document=**} {
-      allow read, write: if false;
+    // Helper function to check if the requesting user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
-    // Sessions collection
-    // Users can read, write (update, delete), and create their own session documents.
-    match /sessions/{sessionId} {
-      allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.user_id;
-      allow create: if request.auth != null && request.resource.data.user_id == request.auth.uid;
-
-      // Subcollections within a session (queries, specialist_outputs, synthesizer_responses, summaries, metadata)
-      // Users can read, write, and create documents in subcollections if they own the parent session.
-      match /{subcollection}/{docId} {
-        allow read, write, create: if request.auth != null && get(/databases/$(database)/documents/sessions/$(sessionId)).data.user_id == request.auth.uid;
-      }
-    }
-
-    // Data Files collection
-    // Authenticated users can read data files.
-    // Writes to data_files should typically be handled by a trusted backend/admin process.
+    // data_files collection: Read-only for authenticated users, no writes allowed from client.
     match /data_files/{fileId} {
-      allow read: if request.auth != null;
-      allow write: if false; // Disallow client-side writes for now.
+      allow read: if isAuthenticated();
+      allow write: if false; // Backend/Admin SDK should handle writes
+    }
+
+    // sessions collection
+    match /sessions/{sessionId} {
+      // Helper function to check if the requesting user owns the session document
+      // Used for read, update, delete operations on an existing document.
+      function isSessionOwner() {
+        return isAuthenticated() && resource.data.user_id == request.auth.uid;
+      }
+      // Helper function for validating data when creating a new session document.
+      // Ensures the 'user_id' field in the new document matches the authenticated user's UID.
+      function isCreatingOwnSession() {
+        return isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+      }
+
+      allow create: if isCreatingOwnSession();
+      allow read, update, delete: if isSessionOwner();
+
+      // --- Subcollections within a session ---
+      // Generic helper function to check if the user owns the parent session document
+      // for operations on subcollection documents.
+      function parentSessionOwnedByCurrentUser() {
+        let sessionDoc = get(/databases/$(database)/documents/sessions/$(sessionId));
+        return isAuthenticated() && sessionDoc.data.user_id == request.auth.uid;
+      }
+
+      match /queries/{queryId} {
+        allow read, create: if parentSessionOwnedByCurrentUser();
+        // allow update, delete: if parentSessionOwnedByCurrentUser() && ... (add more conditions if needed);
+      }
+
+      match /specialist_outputs/{outputId} {
+        allow read, create: if parentSessionOwnedByCurrentUser();
+      }
+
+      match /synthesizer_responses/{responseId} {
+        allow read, create: if parentSessionOwnedByCurrentUser();
+      }
+
+      match /summaries/{summaryId} {
+        allow read, create: if parentSessionOwnedByCurrentUser();
+      }
+
+      match /metadata/{metadataId} {
+        allow read, create: if parentSessionOwnedByCurrentUser();
+      }
     }
   }
 }

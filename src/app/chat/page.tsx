@@ -83,9 +83,8 @@ export default function ChatPage() {
     }
 
     const userMessageText = input;
-    setInput(''); // Clear input immediately
+    setInput(''); 
 
-    // Add user message to UI
     const userMessage: Message = {
       id: Date.now().toString(),
       text: userMessageText,
@@ -96,10 +95,9 @@ export default function ChatPage() {
 
     let activeSessionId = currentSessionId;
 
-    // Create or update session
     if (!activeSessionId) {
       try {
-        // Try to determine company context for new session
+        console.log(`[ChatPage] Attempting to create session for user UID: ${user.uid}`); // Diagnostic log
         const companyForNewSession = extractCompanyContext(userMessageText) || currentCompanyContext;
         const newSessionId = await createSession(user.uid, companyForNewSession || null);
         setCurrentSessionId(newSessionId);
@@ -107,8 +105,9 @@ export default function ChatPage() {
         toast({ title: "New Session Started", description: `Session ID: ${newSessionId}`, duration: 2000 });
       } catch (error) {
         console.error("Error creating session:", error);
-        toast({ title: "Session Error", description: "Could not start a new session. Chat history may not be saved.", variant: "destructive" });
-        // Allow chat to continue but history might not be saved
+        toast({ title: "Session Creation Error", description: "Could not start a new session. " + (error instanceof Error ? error.message : "Please check console."), variant: "destructive" });
+        setIsLoading(false); // Stop loading if session creation fails
+        return; // Important: stop further processing if session can't be created
       }
     } else {
       try {
@@ -118,7 +117,6 @@ export default function ChatPage() {
       }
     }
     
-    // Update current company context based on this message
     const detectedCompany = extractCompanyContext(userMessageText);
     if (detectedCompany) {
         setCurrentCompanyContext(detectedCompany);
@@ -187,7 +185,7 @@ export default function ChatPage() {
 
   return (
     <AppShell>
-      <div className="flex h-[calc(100vh-4rem-64px)] flex-col"> {/* Adjusted height */}
+      <div className="flex h-[calc(100vh-4rem-64px)] flex-col">
         <Card className="flex-1 flex flex-col shadow-lg overflow-hidden">
           <CardHeader className="border-b">
             <CardTitle className="text-xl">Financial Chat Assistant</CardTitle>
