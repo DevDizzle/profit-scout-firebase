@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle, Zap, BarChart2, MessageSquare, Loader2 } from 'lucide-react';
-import Image from 'next/image';
+// Removed Image import since it's no longer used
+// import Image from 'next/image'; 
 
 function Logo() {
   return (
@@ -96,26 +97,20 @@ export default function LandingPage() {
         {/* Hero Section */}
         <section className="w-full py-12 md:py-24 lg:py-32 bg-gradient-to-br from-background to-muted/30">
           <div className="container px-4 md:px-6">
-            <div className="grid gap-6 lg:grid-cols-2 lg:gap-12 xl:gap-16 items-center">
-              <div className="space-y-4 md:space-y-6">
+            {/* Adjusted grid to be single column and text centered */}
+            <div className="grid gap-6 lg:gap-12 items-center text-center">
+              <div className="space-y-4 md:space-y-6 max-w-3xl mx-auto"> {/* Added max-w and mx-auto for centering text block */}
                 <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl/none text-primary">
                   ProfitScout: Your AI-Powered Aide for Smarter Stock Investments
                 </h1>
                 <p className="text-lg text-muted-foreground md:text-xl">
                   Get a 30-day probability of stocks rising over 12% after earnings calls, plus BUY, HOLD, or SELL recommendations.
                 </p>
-                <p className="max-w-[600px] text-foreground md:text-lg">
+                <p className="text-foreground md:text-lg"> {/* Removed max-w from here, parent div handles it */}
                   ProfitScout helps you navigate stock purchases by providing synthesized analysis from headline news, earnings calls, SEC filings, technicals, fundamentals, and price history for Russell 1000 stocks. Designed for stock market investors, especially those interested in call options, ProfitScout aims to help you make more informed investment decisions through a simple chat interface.
                 </p>
               </div>
-              <Image
-                src="https://placehold.co/600x400.png"
-                alt="AI Stock Analysis"
-                width={600}
-                height={400}
-                className="mx-auto aspect-video overflow-hidden rounded-xl object-cover sm:w-full lg:order-last shadow-lg"
-                data-ai-hint="stock market chart ai"
-              />
+              {/* Image component removed */}
             </div>
           </div>
         </section>
