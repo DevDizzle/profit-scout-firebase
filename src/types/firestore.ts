@@ -60,3 +60,9 @@ export interface DataFileEntry {
   created_at: Timestamp; // When this metadata entry was created
 }
 
+// waitlist_emails collection
+export interface WaitlistEmailEntry {
+  id: string; // Firestore auto-generated ID
+  email: string;
+  submitted_at: Timestamp;
+}
