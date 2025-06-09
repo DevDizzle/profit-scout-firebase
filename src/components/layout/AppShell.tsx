@@ -4,7 +4,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessageCircle, LogOut, LineChart } from 'lucide-react'; // Added LineChart
+import { MessageCircle, LogOut } from 'lucide-react'; 
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -14,7 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { auth } from '@/config/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react'; // Import useState and useEffect
+import { useState, useEffect } from 'react';
 
 interface AppShellProps {
   children: ReactNode;
@@ -22,7 +22,7 @@ interface AppShellProps {
 
 const navItems = [
   { href: '/chat', label: 'Chat', icon: MessageCircle },
-  { href: '/recommendations', label: 'Recommendations', icon: LineChart }, // Added Recommendations link
+  // { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }, // Dashboard link removed/commented
 ];
 
 function Logo() {
@@ -43,10 +43,10 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const { user } = useAuth();
   const router = useRouter();
-  const [clientReady, setClientReady] = useState(false); // State to manage client-side readiness
+  const [clientReady, setClientReady] = useState(false);
 
   useEffect(() => {
-    setClientReady(true); // Set clientReady to true once component has mounted
+    setClientReady(true); 
   }, []);
 
   const handleLogout = async () => {
@@ -99,10 +99,10 @@ export function AppShell({ children }: AppShellProps) {
           <div className="md:hidden">
             <SidebarTrigger />
           </div>
-          <div className="flex-1"> {/* Placeholder for breadcrumbs or search if needed later */}</div>
+          <div className="flex-1"> </div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
-            {clientReady && user && ( // Only render user dropdown if clientReady and user exists
+            {clientReady && user && ( 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-10 w-10 rounded-full">
