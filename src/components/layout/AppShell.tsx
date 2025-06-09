@@ -4,7 +4,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessageCircle, LogOut } from 'lucide-react';
+import { MessageCircle, LogOut, LineChart } from 'lucide-react'; // Added LineChart
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -22,6 +22,7 @@ interface AppShellProps {
 
 const navItems = [
   { href: '/chat', label: 'Chat', icon: MessageCircle },
+  { href: '/recommendations', label: 'Recommendations', icon: LineChart }, // Added Recommendations link
 ];
 
 function Logo() {
