@@ -7,9 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle, Zap, BarChart2, MessageSquare, Loader2 } from 'lucide-react';
-// Removed Image import since it's no longer used
-// import Image from 'next/image'; 
+import { CheckCircle, Zap, BarChart2, MessageSquare, Loader2, Target } from 'lucide-react';
 
 function Logo() {
   return (
@@ -42,8 +40,8 @@ const benefits = [
   },
   {
     icon: <CheckCircle className="h-6 w-6 text-primary" />,
-    title: 'Investor Tailored',
-    description: 'Designed for all stock market investors, including those trading call options.',
+    title: 'Simple Recommendations',
+    description: 'Clear BUY, SELL, or HOLD advice for Russell 1000 stocks.',
   },
 ];
 
@@ -88,7 +86,6 @@ export default function LandingPage() {
             <Link href="/login" legacyBehavior passHref>
               <Button variant="ghost">Sign In</Button>
             </Link>
-            {/* You can add a Sign Up button here if needed */}
           </nav>
         </div>
       </header>
@@ -97,20 +94,18 @@ export default function LandingPage() {
         {/* Hero Section */}
         <section className="w-full py-12 md:py-24 lg:py-32 bg-gradient-to-br from-background to-muted/30">
           <div className="container px-4 md:px-6">
-            {/* Adjusted grid to be single column and text centered */}
             <div className="grid gap-6 lg:gap-12 items-center text-center">
-              <div className="space-y-4 md:space-y-6 max-w-3xl mx-auto"> {/* Added max-w and mx-auto for centering text block */}
+              <div className="space-y-4 md:space-y-6 max-w-3xl mx-auto">
                 <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl/none text-primary">
                   ProfitScout: Your AI-Powered Aide for Smarter Stock Investments
                 </h1>
                 <p className="text-lg text-muted-foreground md:text-xl">
-                  Get a 30-day probability of stocks rising over 12% after earnings calls, plus BUY, HOLD, or SELL recommendations.
+                  Get simple BUY, SELL, or HOLD recommendations and 30-day probability estimates for stock price increases after earnings calls.
                 </p>
-                <p className="text-foreground md:text-lg"> {/* Removed max-w from here, parent div handles it */}
-                  ProfitScout helps you navigate stock purchases by providing synthesized analysis from headline news, earnings calls, SEC filings, technicals, fundamentals, and price history for Russell 1000 stocks. Designed for stock market investors, especially those interested in call options, ProfitScout aims to help you make more informed investment decisions through a simple chat interface.
+                <p className="text-foreground md:text-lg">
+                  ProfitScout provides straightforward insights for stock market investors. Through an easy-to-use chat interface, access synthesized analysis from headline news, earnings calls, SEC filings, technicals, fundamentals, and price history for Russell 1000 stocks. Make informed decisions without the complexity of advanced trading strategies.
                 </p>
               </div>
-              {/* Image component removed */}
             </div>
           </div>
         </section>
@@ -142,8 +137,28 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Our Approach Section */}
+        <section id="approach" className="w-full py-12 md:py-24 lg:py-32 bg-muted/30">
+          <div className="container px-4 md:px-6">
+            <div className="flex flex-col items-center justify-center space-y-4 text-center mb-12">
+              <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl text-foreground">Our Approach</h2>
+            </div>
+            <div className="max-w-3xl mx-auto text-lg text-foreground space-y-6">
+              <p>
+                At ProfitScout, we believe in keeping things simple. We don’t overwhelm you with complicated trading strategies. Instead, we provide clear, actionable recommendations: BUY, SELL, or HOLD for stocks in the Russell 1000 index.
+              </p>
+              <p>
+                Additionally, we offer unique insights into earnings calls, giving you probability estimates for stock price increases in the 30 days following these events.
+              </p>
+              <p>
+                Our focus is on individual stocks within the Russell 1000, allowing you to make informed decisions about specific companies that interest you.
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* Sign-up Form Section */}
-        <section id="waitlist" className="w-full py-12 md:py-24 lg:py-32 bg-muted/50">
+        <section id="waitlist" className="w-full py-12 md:py-24 lg:py-32 bg-background">
           <div className="container grid items-center justify-center gap-4 px-4 text-center md:px-6">
             <div className="space-y-3">
               <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight text-foreground">Join the Waitlist</h2>
