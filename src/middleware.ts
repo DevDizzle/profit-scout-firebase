@@ -9,7 +9,7 @@ export function middleware(request: NextRequest) {
   const authTokenCookie = request.cookies.get(AUTH_TOKEN_COOKIE_NAME);
   const isAuthenticated = !!authTokenCookie; // Check presence of the cookie
 
-  const publicPaths = ['/login', '/signup'];
+  const publicPaths = ['/login', '/signup', '/landing'];
   const isPublicPath = publicPaths.some(path => pathname.startsWith(path));
 
   // If the user is at the root path
@@ -21,13 +21,14 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // If the user is trying to access a public path (login/signup)
+  // If the user is trying to access a public path
   if (isPublicPath) {
-    if (isAuthenticated) {
-      // If authenticated, redirect away from login/signup to chat
+    // If authenticated and on a public page like login/signup, redirect to chat.
+    // They can still access /landing if they are logged in, which is fine.
+    if (isAuthenticated && (pathname.startsWith('/login') || pathname.startsWith('/signup'))) {
       return NextResponse.redirect(new URL('/chat', request.url));
     }
-    // If not authenticated, allow access to public paths
+    // Allow access to public paths for everyone else
     return NextResponse.next();
   }
 
