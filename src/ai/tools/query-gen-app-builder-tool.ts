@@ -7,12 +7,26 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { SearchServiceClient } from '@google-cloud/discoveryengine';
 
-// You will need to fill these in with your Gen App Builder details
-// You can find these in your Google Cloud Console under "Vertex AI Search and Conversation"
-const GCP_PROJECT_ID = 'profitscout-lx6bb'; // e.g., 'my-gcp-project-123'
-const GCP_LOCATION = 'global'; // e.g., 'global' or 'us-central1'
-const DATA_STORE_ID = 'profit-scout-v2_1750181577862'; // e.g., 'my-data-store_12345'
-const SERVING_CONFIG_ID = 'default_search'; // Usually 'default_search' unless you created a custom one
+// Gen App Builder details are expected to be provided via environment variables.
+// You can find these IDs in your Google Cloud Console under
+// "Vertex AI Search and Conversation".
+const GCP_PROJECT_ID = process.env.GCP_PROJECT_ID;
+const GCP_LOCATION = process.env.GCP_LOCATION;
+const DATA_STORE_ID = process.env.DATA_STORE_ID;
+const SERVING_CONFIG_ID = process.env.SERVING_CONFIG_ID;
+
+// Validate environment variables on module load for early visibility
+const missingEnvVars: string[] = [];
+if (!GCP_PROJECT_ID) missingEnvVars.push('GCP_PROJECT_ID');
+if (!GCP_LOCATION) missingEnvVars.push('GCP_LOCATION');
+if (!DATA_STORE_ID) missingEnvVars.push('DATA_STORE_ID');
+if (!SERVING_CONFIG_ID) missingEnvVars.push('SERVING_CONFIG_ID');
+if (missingEnvVars.length > 0) {
+  console.error(
+    `[queryDataStore Tool] Missing required environment variable(s): ${missingEnvVars.join(', ')}. ` +
+    'The queryDataStore tool will not work until these are provided.'
+  );
+}
 
 // Initialize the Discovery Engine client
 const discoveryEngineClient = new SearchServiceClient();
@@ -40,13 +54,19 @@ export const queryGenAppBuilderTool = ai.defineTool(
   async (input: QueryGenAppBuilderInput): Promise<QueryGenAppBuilderOutput> => {
     console.log(`[queryDataStore Tool] Called with query: "${input.query}"`);
 
-    if (GCP_PROJECT_ID === 'YOUR_GCP_PROJECT_ID' || DATA_STORE_ID === 'YOUR_DATA_STORE_ID') {
-        const errorMessage = "[queryDataStore Tool] ERROR: GCP_PROJECT_ID or DATA_STORE_ID are placeholders. Please update them in src/ai/tools/query-gen-app-builder-tool.ts.";
+    if (!GCP_PROJECT_ID || !GCP_LOCATION || !DATA_STORE_ID || !SERVING_CONFIG_ID) {
+        const missing = [
+            !GCP_PROJECT_ID && 'GCP_PROJECT_ID',
+            !GCP_LOCATION && 'GCP_LOCATION',
+            !DATA_STORE_ID && 'DATA_STORE_ID',
+            !SERVING_CONFIG_ID && 'SERVING_CONFIG_ID',
+        ].filter(Boolean).join(', ');
+        const errorMessage = `[queryDataStore Tool] ERROR: Missing required environment variable(s): ${missing}.`;
         console.error(errorMessage);
         // Returning a structured error that the LLM can understand.
         return {
             results: [{
-                source: "Tool Configuration Error",
+                source: 'Tool Configuration Error',
                 snippet: `The tool is not configured. ${errorMessage}`,
             }],
         };
