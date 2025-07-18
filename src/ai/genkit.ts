@@ -3,12 +3,13 @@ import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 
 // The API key is read from environment variables by the build process.
-// We directly use the variable here.
-const apiKey = process.env.GOOGLE_API_KEY;
+// We use the same key as the Firebase client-side config, which is prefixed
+// with NEXT_PUBLIC_ for availability across the Next.js app.
+const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 
 if (!apiKey) {
   console.error(
-    '[genkit.ts] CRITICAL: GOOGLE_API_KEY not found. ' +
+    '[genkit.ts] CRITICAL: NEXT_PUBLIC_FIREBASE_API_KEY not found. ' +
     'The Genkit googleAI plugin will likely fail to initialize. ' +
     'Ensure this environment variable is set in your .env file.'
   );
