@@ -11,3 +11,4 @@ import '@/ai/flows/summarize-conversation-flow.ts'; // Make sure this is importe
 // The answerFinancialQuestions flow now uses these tools.
 import '@/ai/tools/fetch-company-data-tool.ts';
 import '@/ai/tools/fetch-document-gcs-tool.ts';
+import '@/ai/tools/query-gen-app-builder-tool.ts';

@@ -16,6 +16,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 import { fetchDocumentFromGCSTool } from '@/ai/tools/fetch-document-gcs-tool';
 import { fetchCompanyDataTool } from '@/ai/tools/fetch-company-data-tool';
+import { queryGenAppBuilderTool } from '@/ai/tools/query-gen-app-builder-tool';
 
 const AnswerFinancialQuestionsInputSchema = z.object({
   question: z.string().describe('The user question to answer.'),
@@ -105,22 +106,23 @@ const mainAnswerPrompt = ai.definePrompt({
   name: 'answerFinancialQuestionsMainPrompt',
   input: {schema: MainAnswerPromptInputSchema},
   output: {schema: z.object({ answer: z.string() })},
-  tools: [fetchDocumentFromGCSTool, fetchCompanyDataTool],
+  tools: [fetchDocumentFromGCSTool, fetchCompanyDataTool, queryGenAppBuilderTool],
   system: `You are a friendly and helpful conversational AI assistant for ProfitScout.
 - Respond politely and conversationally to the user's questions.
 - If the user provides a simple greeting (e.g., "Hi", "Hello"), respond in kind and briefly offer assistance with financial topics.
 - If the question is very short or unclear, you can ask for clarification.
+- To find information, you have access to a specialized financial data store. Use the 'queryDataStore' tool with the user's question to get relevant data.
 - Use the provided 'Previous Conversation Summary' if available, to maintain context and avoid repetition.
 {{#if relevantDataSources.length}}
-- To answer the question, consult the following relevant data sources. Use the 'fetchDocumentFromGCS' tool to get their content by providing the GCS path (e.g., "gs://bucket-name/file-name.txt").
+- To answer the question, you can also consult the following relevant data sources. Use the 'fetchDocumentFromGCS' tool to get their content by providing the GCS path (e.g., "gs://bucket-name/file-name.txt").
   Relevant Data Sources:
   {{#each relevantDataSources}}
   - {{{this}}}
   {{/each}}
 {{else}}
-- No specific documents were identified by the selector as primarily relevant for this query. You can still try to answer generally or use other available tools like 'fetchCompanyData' if a company name is provided or implied.
+- No specific GCS documents were identified as primarily relevant for this query. You should rely on the 'queryDataStore' tool to find an answer, or other available tools like 'fetchCompanyData' if a company name is provided or implied.
 {{/if}}
-- If you use a tool, especially 'fetchDocumentFromGCS', briefly mention the source of the information in your answer if it's non-obvious or adds credibility (e.g., "According to the Q4 earnings call transcript...").
+- If you use a tool, briefly mention the source of the information in your answer if it's non-obvious or adds credibility (e.g., "According to the Q4 earnings call transcript...", "I found in our data store that...").
 - Always ensure your final response strictly adheres to the output schema, providing only the 'answer' field as a string. Do not add any preamble or explanation outside of the 'answer' field.`,
   prompt: `{{#if conversationSummary}}Previous Conversation Summary:
 {{{conversationSummary}}}
@@ -197,7 +199,7 @@ const answerFinancialQuestionsFlow = ai.defineFlow(
     let synthesizerResponseText: string;
 
     try {
-      console.log('[answerFinancialQuestionsFlow] Calling mainAnswerPrompt with input including selected GCS sources (if any).');
+      console.log('[answerFinancialQuestionsFlow] Calling mainAnswerPrompt with input including selected GCS sources and new Data Store tool.');
       const {output} = await mainAnswerPrompt(promptInputForAnswer);
 
       if (!output || typeof output.answer === 'undefined') {
@@ -224,4 +226,3 @@ const answerFinancialQuestionsFlow = ai.defineFlow(
     return { answer: synthesizerResponseText };
   }
 );
-
