@@ -129,39 +129,21 @@ export async function POST(request: NextRequest) {
         console.warn(`[API /api/summarize-session] No significant conversation data found to summarize for session ${sessionId}. This might happen if the session ID is incorrect or if no queries/responses have been saved yet.`);
     }
 
-    // Construct fullChatHistory string
-    let fullChatHistoryString = "";
-    const mergedHistory: (QueryEntry | SynthesizerResponseEntry)[] = [];
-    let qIdx = 0, rIdx = 0;
-
+    // Construct fullChatHistory string with robust merging logic
     const dbQueries = conversationHistory.allQueries;
     const dbResponses = conversationHistory.allSynthesizerResponses;
+    
+    const mergedHistory = [...dbQueries, ...dbResponses];
+    mergedHistory.sort((a, b) => {
+        const timeA = (a.timestamp as any)?.toMillis() || 0;
+        const timeB = (b.timestamp as any)?.toMillis() || 0;
+        return timeA - timeB;
+    });
 
-    while(qIdx < dbQueries.length || rIdx < dbResponses.length) {
-      const queryEntry = dbQueries[qIdx];
-      const responseEntry = dbResponses[rIdx];
-
-      const queryTimestampMs = (queryEntry?.timestamp as unknown as Timestamp)?.toMillis?.();
-      const responseTimestampMs = (responseEntry?.timestamp as unknown as Timestamp)?.toMillis?.();
-
-      if (queryEntry && (!responseTimestampMs || queryTimestampMs <= responseTimestampMs)) {
-        mergedHistory.push(queryEntry);
-        qIdx++;
-      } else if (responseEntry) {
-        mergedHistory.push(responseEntry);
-        rIdx++;
-      } else if (queryEntry) { 
-        mergedHistory.push(queryEntry);
-        qIdx++;
-      } else { 
-        break;
-      }
-    }
-
-    fullChatHistoryString = mergedHistory.map(turn => {
-      if ('text' in turn && turn.text) return `User: ${turn.text}`;
-      if ('response_text' in turn && turn.response_text) return `AI: ${turn.response_text}`;
-      return '';
+    const fullChatHistoryString = mergedHistory.map(item => {
+        if ('text' in item && item.text) return `User: ${item.text}`;
+        if ('response_text' in item && item.response_text) return `AI: ${item.response_text}`;
+        return '';
     }).filter(Boolean).join('\n');
     
     console.log(`[API /api/summarize-session] Constructed fullChatHistoryString (length ${fullChatHistoryString.length}): "${fullChatHistoryString.substring(0,200)}..."`);
