@@ -9,9 +9,9 @@ import { SearchServiceClient } from '@google-cloud/discoveryengine';
 
 // You will need to fill these in with your Gen App Builder details
 // You can find these in your Google Cloud Console under "Vertex AI Search and Conversation"
-const GCP_PROJECT_ID = 'YOUR_GCP_PROJECT_ID'; // e.g., 'my-gcp-project-123'
+const GCP_PROJECT_ID = 'profitscout-lx6bb'; // e.g., 'my-gcp-project-123'
 const GCP_LOCATION = 'global'; // e.g., 'global' or 'us-central1'
-const DATA_STORE_ID = 'YOUR_DATA_STORE_ID'; // e.g., 'my-data-store_12345'
+const DATA_STORE_ID = 'profit-scout-v2_1750181577862'; // e.g., 'my-data-store_12345'
 const SERVING_CONFIG_ID = 'default_search'; // Usually 'default_search' unless you created a custom one
 
 // Initialize the Discovery Engine client
