@@ -141,9 +141,9 @@ export async function POST(request: NextRequest) {
       const queryEntry = dbQueries[qIdx];
       const responseEntry = dbResponses[rIdx];
 
-      // Convert Firestore Timestamps to milliseconds for comparison
-      const queryTimestampMs = queryEntry?.timestamp ? (queryEntry.timestamp as unknown as Timestamp).toMillis() : Infinity;
-      const responseTimestampMs = responseEntry?.timestamp ? (responseEntry.timestamp as unknown as Timestamp).toMillis() : Infinity;
+      // Convert Firestore Timestamps to milliseconds for comparison - WITH ROBUST CHECKS
+      const queryTimestampMs = (queryEntry?.timestamp as unknown as Timestamp)?.toMillis?.() ?? Infinity;
+      const responseTimestampMs = (responseEntry?.timestamp as unknown as Timestamp)?.toMillis?.() ?? Infinity;
 
       if (queryEntry && queryTimestampMs <= responseTimestampMs) {
         mergedHistory.push(queryEntry);
