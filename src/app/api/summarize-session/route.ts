@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { summarizeConversation, type SummarizeConversationInput } from '@/ai/flows/summarize-conversation-flow';
 import { z } from 'zod';
 import admin from 'firebase-admin';
-import type { FullConversationHistory, QueryEntry, SynthesizerResponseEntry, SummaryEntry } from '@/types/firestore';
+import type { FullConversationHistory, QueryEntry, SynthesizerResponseEntry, SummaryEntry, BaseDocument } from '@/types/firestore';
 import type { Timestamp } from 'firebase-admin/firestore'; // Import Timestamp from firebase-admin
 
 // Initialize Firebase Admin SDK
@@ -108,6 +108,13 @@ async function addAdminSummaryToSession(
   return docRef.id;
 }
 
+// Helper to safely get milliseconds from a Firestore Timestamp
+const getMillis = (timestamp: any): number => {
+  if (timestamp && typeof timestamp.toMillis === 'function') {
+    return timestamp.toMillis();
+  }
+  return 0; // Default to 0 if timestamp is missing or invalid
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -133,10 +140,12 @@ export async function POST(request: NextRequest) {
     const dbQueries = conversationHistory.allQueries;
     const dbResponses = conversationHistory.allSynthesizerResponses;
     
-    const mergedHistory = [...dbQueries, ...dbResponses];
+    const mergedHistory: (QueryEntry | SynthesizerResponseEntry)[] = [...dbQueries, ...dbResponses];
+
+    // Robust sorting logic
     mergedHistory.sort((a, b) => {
-        const timeA = (a.timestamp as any)?.toMillis() || 0;
-        const timeB = (b.timestamp as any)?.toMillis() || 0;
+        const timeA = getMillis(a.timestamp);
+        const timeB = getMillis(b.timestamp);
         return timeA - timeB;
     });
 
