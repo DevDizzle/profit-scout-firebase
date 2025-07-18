@@ -21,7 +21,11 @@ const firebaseConfig = {
 };
 
 // Helper to log critical config errors
-const logConfigError = (variableName: string, projectContext: string, specificMessage: string = "") => {
+const logConfigError = (
+  variableName: string,
+  projectContext: string,
+  specificMessage: string = ""
+) => {
   console.error(
     `CRITICAL Firebase Config Error: ${variableName} is missing or is a placeholder. ` +
     `${specificMessage} ` +
@@ -32,16 +36,29 @@ const logConfigError = (variableName: string, projectContext: string, specificMe
 // Validate critical Firebase configurations
 if (!firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith(VITE_RESERVED_PREFIX)) {
   // This check is important, as the Firebase API key is used for both Firebase services and sometimes Google AI.
-  logConfigError("NEXT_PUBLIC_FIREBASE_API_KEY", firebaseConfig.projectId || "profitscout-lx6bb");
+  logConfigError(
+    "NEXT_PUBLIC_FIREBASE_API_KEY",
+    firebaseConfig.projectId || "unknown project"
+  );
 }
-if (!firebaseConfig.projectId || firebaseConfig.projectId.startsWith(VITE_RESERVED_PREFIX) || firebaseConfig.projectId !== "profitscout-lx6bb") {
-  logConfigError("NEXT_PUBLIC_FIREBASE_PROJECT_ID", "profitscout-lx6bb", `Ensure it is set to 'profitscout-lx6bb'. Current value: ${firebaseConfig.projectId}.`);
+if (!firebaseConfig.projectId || firebaseConfig.projectId.startsWith(VITE_RESERVED_PREFIX)) {
+  logConfigError(
+    "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+    firebaseConfig.projectId || "your Firebase project"
+  );
 }
 if (!firebaseConfig.appId || firebaseConfig.appId.startsWith(VITE_RESERVED_PREFIX)) {
-  logConfigError("NEXT_PUBLIC_FIREBASE_APP_ID", firebaseConfig.projectId || "profitscout-lx6bb", "This is a very common cause for 'Installations: request-failed' errors.");
+  logConfigError(
+    "NEXT_PUBLIC_FIREBASE_APP_ID",
+    firebaseConfig.projectId || "your Firebase project",
+    "This is a very common cause for 'Installations: request-failed' errors."
+  );
 }
 if (!firebaseConfig.messagingSenderId || firebaseConfig.messagingSenderId.startsWith(VITE_RESERVED_PREFIX)) {
-  logConfigError("NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID", firebaseConfig.projectId || "profitscout-lx6bb");
+  logConfigError(
+    "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+    firebaseConfig.projectId || "your Firebase project"
+  );
 }
 
 
@@ -53,7 +70,7 @@ export let db: Firestore | undefined; // Export Firestore instance
 // Check if all critical configurations are present before initializing
 if (
   firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith(VITE_RESERVED_PREFIX) &&
-  firebaseConfig.projectId && !firebaseConfig.projectId.startsWith(VITE_RESERVED_PREFIX) && firebaseConfig.projectId === "profitscout-lx6bb" &&
+  firebaseConfig.projectId && !firebaseConfig.projectId.startsWith(VITE_RESERVED_PREFIX) &&
   firebaseConfig.appId && !firebaseConfig.appId.startsWith(VITE_RESERVED_PREFIX) &&
   firebaseConfig.messagingSenderId && !firebaseConfig.messagingSenderId.startsWith(VITE_RESERVED_PREFIX)
 ) {
@@ -77,7 +94,9 @@ if (
   }
 
 } else {
-  console.error("Firebase initialization skipped due to missing or placeholder critical configuration. Please check .env file and Firebase project settings for profitscout-lx6bb.");
+  console.error(
+    "Firebase initialization skipped due to missing or placeholder critical configuration. Please check your .env file and Firebase project settings."
+  );
   // auth and db will remain undefined
 }
 
