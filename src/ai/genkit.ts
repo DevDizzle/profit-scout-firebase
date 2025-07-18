@@ -2,27 +2,25 @@
 import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 
+// The API key is read from environment variables by the build process.
+// We directly use the variable here.
 const apiKey = process.env.GOOGLE_API_KEY;
 
 if (!apiKey) {
   console.error(
-    '[genkit.ts] CRITICAL: GOOGLE_API_KEY not found in process.env. ' +
+    '[genkit.ts] CRITICAL: GOOGLE_API_KEY not found. ' +
     'The Genkit googleAI plugin will likely fail to initialize. ' +
-    'Ensure this environment variable is set in your deployment environment (e.g., Cloud Run).'
-  );
-} else {
-  const maskedApiKey = `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}`;
-  console.log(
-    `[genkit.ts] GOOGLE_API_KEY found in process.env. Starts with: ${apiKey.substring(0, 4)}, Ends with: ${apiKey.substring(apiKey.length - 4)}, Length: ${apiKey.length}. It will be used by Genkit googleAI plugin.`
+    'Ensure this environment variable is set in your .env file.'
   );
 }
 
 export const ai = genkit({
   plugins: [
     googleAI({
-      apiKey: apiKey, // Explicitly pass the API key
+      apiKey: apiKey, // Pass the key directly to the plugin
     }),
   ],
-  model: 'googleai/gemini-2.0-flash',
+  // This specifies the default model for text generation unless overridden.
+  // It's good practice to set a default.
+  model: 'googleai/gemini-1.5-flash',
 });
-

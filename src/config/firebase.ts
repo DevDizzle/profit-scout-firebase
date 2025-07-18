@@ -28,6 +28,7 @@ const logConfigError = (variableName: string, projectContext: string, specificMe
 
 // Validate critical Firebase configurations
 if (!firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith(VITE_RESERVED_PREFIX)) {
+  // This check is important, as the Firebase API key is used for both Firebase services and sometimes Google AI.
   logConfigError("NEXT_PUBLIC_FIREBASE_API_KEY", firebaseConfig.projectId || "profitscout-lx6bb");
 }
 if (!firebaseConfig.projectId || firebaseConfig.projectId.startsWith(VITE_RESERVED_PREFIX) || firebaseConfig.projectId !== "profitscout-lx6bb") {
