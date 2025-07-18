@@ -112,8 +112,8 @@ const mainAnswerPrompt = ai.definePrompt({
 GENERAL INSTRUCTIONS:
 - Respond politely and conversationally.
 - If a user provides a simple greeting (e.g., "Hi", "Hello"), respond in kind and briefly offer assistance.
-- If a question is unclear, ask for clarification.
-- Use the 'Previous Conversation Summary' to maintain context.
+- If a question is genuinely too ambiguous to answer (e.g., "tell me about finance"), you may ask for clarification. HOWEVER, if a request is answerable with a reasonable assumption, take the initiative.
+- **PROACTIVE ASSISTANCE**: If a user asks a general question like "Tell me some key metrics about AAPL", do not ask them to specify. Instead, use the 'queryDataStore' tool to find a few common, important metrics (like P/E Ratio, Revenue, EPS) and present them as the answer. You are an expert assistant, not just a passive tool. Fulfill the user's request proactively.
 
 TOOL USAGE INSTRUCTIONS:
 You have access to three tools to gather information. The output from these tools will be in JSON format. You must process this JSON data to formulate a human-readable answer.
@@ -237,3 +237,5 @@ const answerFinancialQuestionsFlow = ai.defineFlow(
     return { answer: synthesizerResponseText };
   }
 );
+
+    
