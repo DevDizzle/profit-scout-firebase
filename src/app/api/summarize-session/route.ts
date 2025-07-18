@@ -28,6 +28,8 @@ const firestoreAdmin = admin.firestore();
 const apiRequestSchema = z.object({
   sessionId: z.string(),
   queryId: z.string(),
+  latestQueryText: z.string(), // Added to receive text directly
+  latestResponseText: z.string(), // Added to receive text directly
 });
 
 async function getAdminFullConversationHistory(sessionId: string): Promise<FullConversationHistory> {
@@ -116,7 +118,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request body', details: validationResult.error.format() }, { status: 400 });
     }
 
-    const { sessionId, queryId } = validationResult.data;
+    const { sessionId, queryId, latestQueryText, latestResponseText } = validationResult.data;
 
     console.log(`[API /api/summarize-session] Received request for session: ${sessionId}, query: ${queryId}`);
 
@@ -125,8 +127,6 @@ export async function POST(request: NextRequest) {
     
     if (conversationHistory.allQueries.length === 0 && conversationHistory.allSynthesizerResponses.length === 0) {
         console.warn(`[API /api/summarize-session] No significant conversation data found to summarize for session ${sessionId}. This might happen if the session ID is incorrect or if no queries/responses have been saved yet.`);
-        // Still attempt to generate a summary if there's a previous one or a very first query.
-        // The summarizeConversation flow should handle empty inputs gracefully.
     }
 
     // Construct fullChatHistory string
@@ -141,23 +141,19 @@ export async function POST(request: NextRequest) {
       const queryEntry = dbQueries[qIdx];
       const responseEntry = dbResponses[rIdx];
 
-      // Convert Firestore Timestamps to milliseconds for comparison - WITH ROBUST CHECKS
-      const queryTimestampMs = (queryEntry?.timestamp as unknown as Timestamp)?.toMillis?.() ?? Infinity;
-      const responseTimestampMs = (responseEntry?.timestamp as unknown as Timestamp)?.toMillis?.() ?? Infinity;
+      const queryTimestampMs = (queryEntry?.timestamp as unknown as Timestamp)?.toMillis?.();
+      const responseTimestampMs = (responseEntry?.timestamp as unknown as Timestamp)?.toMillis?.();
 
-      if (queryEntry && queryTimestampMs <= responseTimestampMs) {
+      if (queryEntry && (!responseTimestampMs || queryTimestampMs <= responseTimestampMs)) {
         mergedHistory.push(queryEntry);
         qIdx++;
       } else if (responseEntry) {
         mergedHistory.push(responseEntry);
         rIdx++;
-      } else if (queryEntry) { // Only queries left
+      } else if (queryEntry) { 
         mergedHistory.push(queryEntry);
         qIdx++;
-      } else if (responseEntry) { // Only responses left
-        mergedHistory.push(responseEntry);
-        rIdx++;
-      } else { // Should not happen if loop condition is correct
+      } else { 
         break;
       }
     }
@@ -169,26 +165,12 @@ export async function POST(request: NextRequest) {
     }).filter(Boolean).join('\n');
     
     console.log(`[API /api/summarize-session] Constructed fullChatHistoryString (length ${fullChatHistoryString.length}): "${fullChatHistoryString.substring(0,200)}..."`);
-
-    const latestQuery = conversationHistory.allQueries.length > 0 
-        ? conversationHistory.allQueries[conversationHistory.allQueries.length - 1] 
-        : null;
-    const latestResponse = conversationHistory.allSynthesizerResponses.length > 0
-        ? conversationHistory.allSynthesizerResponses[conversationHistory.allSynthesizerResponses.length -1]
-        : null;
-
-    if (!latestQuery || !latestResponse) {
-        console.warn(`[API /api/summarize-session] Missing latest query or response for session ${sessionId}. This is unusual if summarization is triggered after a response. Query found: ${!!latestQuery}, Response found: ${!!latestResponse}`);
-        // Avoid calling summarize if core components are missing.
-        return NextResponse.json({ error: 'Cannot summarize without latest query and response data.' }, { status: 400 });
-    }
-
-
+    
     const summaryFlowInput: SummarizeConversationInput = {
       previousSummaryText: conversationHistory.latestSummary?.summary_text,
       fullChatHistory: fullChatHistoryString,
-      latestQueryText: latestQuery.text,
-      latestSynthesizerResponseText: latestResponse.response_text,
+      latestQueryText: latestQueryText, // Use text passed in request
+      latestSynthesizerResponseText: latestResponseText, // Use text passed in request
     };
     
     console.log(`[API /api/summarize-session] Calling summarizeConversation flow for session: ${sessionId}. Input includes: previousSummary (${!!summaryFlowInput.previousSummaryText}), fullChatHistory length (${summaryFlowInput.fullChatHistory.length}), latestQuery ("${summaryFlowInput.latestQueryText.substring(0,50)}..."), latestResponse ("${summaryFlowInput.latestSynthesizerResponseText.substring(0,50)}...")`);
@@ -198,8 +180,6 @@ export async function POST(request: NextRequest) {
 
     if (!summaryResult || !summaryResult.summaryText) {
       console.error(`[API /api/summarize-session] Summarization flow did not return valid summary text for session: ${sessionId}. Summary result:`, summaryResult);
-      // Still save an empty summary or a marker? Or return error?
-      // For now, let's return an error if summarization truly fails to produce text.
       return NextResponse.json({ error: 'Failed to generate summary text from AI flow.' }, { status: 500 });
     }
     
@@ -222,5 +202,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal Server Error in summarize-session API.', details: typedError.message }, { status: 500 });
   }
 }
-
-    

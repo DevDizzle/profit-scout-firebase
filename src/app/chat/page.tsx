@@ -198,7 +198,12 @@ export default function ChatPage() {
           const summaryApiResponse = await fetch('/api/summarize-session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId: activeSessionId, queryId: savedQueryId }),
+            body: JSON.stringify({ 
+              sessionId: activeSessionId, 
+              queryId: savedQueryId,
+              latestQueryText: userMessageText, // Pass latest query text
+              latestResponseText: aiResponse.answer, // Pass latest response text
+            }),
           });
 
           if (!summaryApiResponse.ok) {
@@ -212,7 +217,6 @@ export default function ChatPage() {
           } else {
             const summaryData = await summaryApiResponse.json();
             console.log(`[ChatPage] Summarization API call successful. Summary ID: ${summaryData.summaryId}, Summary: "${(summaryData.summaryText || "").substring(0,50)}..."`);
-            // Optionally: toast({ title: "Context Updated", description: "Conversation summary processed.", duration: 1500 });
           }
 
         } catch (firestoreOrApiError) {
@@ -332,4 +336,3 @@ export default function ChatPage() {
     </AppShell>
   );
 }
-
