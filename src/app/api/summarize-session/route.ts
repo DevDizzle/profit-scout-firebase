@@ -28,8 +28,8 @@ const firestoreAdmin = admin.firestore();
 const apiRequestSchema = z.object({
   sessionId: z.string(),
   queryId: z.string(),
-  latestQueryText: z.string(), // Added to receive text directly
-  latestResponseText: z.string(), // Added to receive text directly
+  latestQueryText: z.string(),
+  latestResponseText: z.string(),
 });
 
 async function getAdminFullConversationHistory(sessionId: string): Promise<FullConversationHistory> {
@@ -113,6 +113,10 @@ const getMillis = (timestamp: any): number => {
   if (timestamp && typeof timestamp.toMillis === 'function') {
     return timestamp.toMillis();
   }
+  // Fallback for cases where it might not be a Timestamp object during merges
+  if (timestamp && timestamp._seconds) {
+    return timestamp._seconds * 1000 + (timestamp._nanoseconds || 0) / 1000000;
+  }
   return 0; // Default to 0 if timestamp is missing or invalid
 };
 
@@ -132,10 +136,6 @@ export async function POST(request: NextRequest) {
     // 1. Fetch full conversation data from Firestore using Admin SDK
     const conversationHistory = await getAdminFullConversationHistory(sessionId);
     
-    if (conversationHistory.allQueries.length === 0 && conversationHistory.allSynthesizerResponses.length === 0) {
-        console.warn(`[API /api/summarize-session] No significant conversation data found to summarize for session ${sessionId}. This might happen if the session ID is incorrect or if no queries/responses have been saved yet.`);
-    }
-
     // Construct fullChatHistory string with robust merging logic
     const dbQueries = conversationHistory.allQueries;
     const dbResponses = conversationHistory.allSynthesizerResponses;
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
       latestSynthesizerResponseText: latestResponseText, // Use text passed in request
     };
     
-    console.log(`[API /api/summarize-session] Calling summarizeConversation flow for session: ${sessionId}. Input includes: previousSummary (${!!summaryFlowInput.previousSummaryText}), fullChatHistory length (${summaryFlowInput.fullChatHistory.length}), latestQuery ("${summaryFlowInput.latestQueryText.substring(0,50)}..."), latestResponse ("${summaryFlowInput.latestSynthesizerResponseText.substring(0,50)}...")`);
+    console.log(`[API /api/summarize-session] Calling summarizeConversation flow for session: ${sessionId}. Input includes: previousSummary (${!!summaryFlowInput.previousSummaryText}), fullChatHistory length (${summaryFlowInput.fullChatHistory.length})`);
     
     // 2. Call Genkit flow to generate summary
     const summaryResult = await summarizeConversation(summaryFlowInput);
